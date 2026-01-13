@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
+#include <cilk/cilk.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -78,7 +79,7 @@ void kernel_symm(int m, int n,
 		 DATA_TYPE POLYBENCH_2D(A,M,M,m,m),
 		 DATA_TYPE POLYBENCH_2D(B,M,N,m,n))
 {
-  int i, j, k;
+  int j, k;
   DATA_TYPE temp2;
 
 //BLAS PARAMS
@@ -90,11 +91,11 @@ void kernel_symm(int m, int n,
 // C is MxN
 //note that due to Fortran array layout, the code below more closely resembles upper triangular case in BLAS
 #pragma scop
-   for (i = 0; i < _PB_M; i++)
-      for (j = 0; j < _PB_N; j++ )
+   for (int i = 0; i < _PB_M; i++)
+      cilk_for (int j = 0; j < _PB_N; j++ )
       {
-        temp2 = 0;
-        for (k = 0; k < i; k++) {
+        DATA_TYPE temp2 = 0;
+        for (int k = 0; k < i; k++) {
            C[k][j] += alpha*B[i][j] * A[i][k];
            temp2 += B[k][j] * A[i][k];
         }

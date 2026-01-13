@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
+#include <cilk/cilk.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -80,11 +81,11 @@ void kernel_gesummv(int n,
   int i, j;
 
 #pragma scop
-  for (i = 0; i < _PB_N; i++)
+  cilk_for (int i = 0; i < _PB_N; i++)
     {
       tmp[i] = SCALAR_VAL(0.0);
       y[i] = SCALAR_VAL(0.0);
-      for (j = 0; j < _PB_N; j++)
+      for (int j = 0; j < _PB_N; j++)
 	{
 	  tmp[i] = A[i][j] * x[j] + tmp[i];
 	  y[i] = B[i][j] * x[j] + y[i];

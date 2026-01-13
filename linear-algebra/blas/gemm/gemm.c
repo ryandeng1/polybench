@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
+#include <cilk/cilk.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -86,11 +87,11 @@ void kernel_gemm(int ni, int nj, int nk,
 //B is NKxNJ
 //C is NIxNJ
 #pragma scop
-  for (i = 0; i < _PB_NI; i++) {
-    for (j = 0; j < _PB_NJ; j++)
+  cilk_for (int i = 0; i < _PB_NI; i++) {
+    for (int j = 0; j < _PB_NJ; j++)
 	C[i][j] *= beta;
-    for (k = 0; k < _PB_NK; k++) {
-       for (j = 0; j < _PB_NJ; j++)
+    for (int k = 0; k < _PB_NK; k++) {
+       for (int j = 0; j < _PB_NJ; j++)
 	  C[i][j] += alpha * A[i][k] * B[k][j];
     }
   }

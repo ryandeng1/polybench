@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
+#include <cilk/cilk.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -76,7 +77,7 @@ void kernel_syr2k(int n, int m,
 		  DATA_TYPE POLYBENCH_2D(A,N,M,n,m),
 		  DATA_TYPE POLYBENCH_2D(B,N,M,n,m))
 {
-  int i, j, k;
+  int j, k;
 
 //BLAS PARAMS
 //UPLO  = 'L'
@@ -85,11 +86,11 @@ void kernel_syr2k(int n, int m,
 //B is NxM
 //C is NxN
 #pragma scop
-  for (i = 0; i < _PB_N; i++) {
-    for (j = 0; j <= i; j++)
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    for (int j = 0; j <= i; j++)
       C[i][j] *= beta;
-    for (k = 0; k < _PB_M; k++)
-      for (j = 0; j <= i; j++)
+    for (int k = 0; k < _PB_M; k++)
+      for (int j = 0; j <= i; j++)
 	{
 	  C[i][j] += A[j][k]*alpha*B[i][k] + B[j][k]*alpha*A[i][k];
 	}
