@@ -18,6 +18,11 @@
 /* Include polybench common header. */
 #include <polybench.h>
 
+/* Include benchmark header for timing */
+#ifdef BENCHMARK
+#include <benchmark.h>
+#endif
+
 /* Include benchmark-specific header. */
 #include "gemver.h"
 
@@ -137,6 +142,39 @@ int main(int argc, char** argv)
   POLYBENCH_1D_ARRAY_DECL(z, DATA_TYPE, N, n);
 
 
+#ifdef BENCHMARK
+  /* Benchmark mode: run kernel N_BENCHMARK_ITERATIONS times and report median */
+  double benchmark_times[N_BENCHMARK_ITERATIONS];
+  for (int benchmark_iter = 0; benchmark_iter < N_BENCHMARK_ITERATIONS; benchmark_iter++) {
+    /* Initialize array(s). */
+    init_array (n, &alpha, &beta,
+                POLYBENCH_ARRAY(A),
+                POLYBENCH_ARRAY(u1),
+                POLYBENCH_ARRAY(v1),
+                POLYBENCH_ARRAY(u2),
+                POLYBENCH_ARRAY(v2),
+                POLYBENCH_ARRAY(w),
+                POLYBENCH_ARRAY(x),
+                POLYBENCH_ARRAY(y),
+                POLYBENCH_ARRAY(z));
+
+    /* Time the kernel */
+    BENCHMARK_BEGIN
+    kernel_gemver (n, alpha, beta,
+                   POLYBENCH_ARRAY(A),
+                   POLYBENCH_ARRAY(u1),
+                   POLYBENCH_ARRAY(v1),
+                   POLYBENCH_ARRAY(u2),
+                   POLYBENCH_ARRAY(v2),
+                   POLYBENCH_ARRAY(w),
+                   POLYBENCH_ARRAY(x),
+                   POLYBENCH_ARRAY(y),
+                   POLYBENCH_ARRAY(z));
+    BENCHMARK_END
+    benchmark_times[benchmark_iter] = BENCHMARK_ELAPSED;
+  }
+  BENCHMARK_PRINT_MEDIAN(benchmark_times, N_BENCHMARK_ITERATIONS);
+#else
   /* Initialize array(s). */
   init_array (n, &alpha, &beta,
 	      POLYBENCH_ARRAY(A),
@@ -167,6 +205,7 @@ int main(int argc, char** argv)
   /* Stop and print timer. */
   polybench_stop_instruments;
   polybench_print_instruments;
+#endif
 
   /* Prevent dead-code elimination. All live-out data must be printed
      by the function call in argument. */

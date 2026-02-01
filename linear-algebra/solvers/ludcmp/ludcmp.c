@@ -18,6 +18,11 @@
 /* Include polybench common header. */
 #include <polybench.h>
 
+/* Include benchmark header for timing */
+#ifdef BENCHMARK
+#include <benchmark.h>
+#endif
+
 /* Include benchmark-specific header. */
 #include "ludcmp.h"
 
@@ -52,19 +57,19 @@ void init_array (int n,
 
   /* Make the matrix positive semi-definite. */
   /* not necessary for LU, but using same code as cholesky */
-  int r,s,t;
-  POLYBENCH_2D_ARRAY_DECL(B, DATA_TYPE, N, N, n, n);
-  for (r = 0; r < n; ++r)
-    for (s = 0; s < n; ++s)
-      (POLYBENCH_ARRAY(B))[r][s] = 0;
-  for (t = 0; t < n; ++t)
-    for (r = 0; r < n; ++r)
-      for (s = 0; s < n; ++s)
-	(POLYBENCH_ARRAY(B))[r][s] += A[r][t] * A[s][t];
-    for (r = 0; r < n; ++r)
-      for (s = 0; s < n; ++s)
-	A[r][s] = (POLYBENCH_ARRAY(B))[r][s];
-  POLYBENCH_FREE_ARRAY(B);
+  // int r,s,t;
+  // POLYBENCH_2D_ARRAY_DECL(B, DATA_TYPE, N, N, n, n);
+  // for (r = 0; r < n; ++r)
+  //   for (s = 0; s < n; ++s)
+  //     (POLYBENCH_ARRAY(B))[r][s] = 0;
+  // for (t = 0; t < n; ++t)
+  //   for (r = 0; r < n; ++r)
+  //     for (s = 0; s < n; ++s)
+	// (POLYBENCH_ARRAY(B))[r][s] += A[r][t] * A[s][t];
+  //   for (r = 0; r < n; ++r)
+  //     for (s = 0; s < n; ++s)
+	// A[r][s] = (POLYBENCH_ARRAY(B))[r][s];
+  // POLYBENCH_FREE_ARRAY(B);
 
 }
 
@@ -100,35 +105,33 @@ void kernel_ludcmp(int n,
 {
   int i, j, k;
 
-  DATA_TYPE w;
-
 #pragma scop
   for (int i = 0; i < _PB_N; i++) {
     for (int j = 0; j <i; j++) {
-       w = A[i][j];
+       DATA_TYPE w = A[i][j];
        for (int k = 0; k < j; k++) {
           w -= A[i][k] * A[k][j];
        }
-        A[i][j] = w / A[j][j];
+       A[i][j] = w / A[j][j];
     }
-   for (int j = i; j < _PB_N; j++) {
-       w = A[i][j];
-       for (int k = 0; k < i; k++) {
-          w -= A[i][k] * A[k][j];
-       }
-       A[i][j] = w;
-    }
+   cilk_for (int j = i; j < _PB_N; j++) {
+      DATA_TYPE w = A[i][j];
+      for (int k = 0; k < i; k++) {
+         w -= A[i][k] * A[k][j];
+      }
+      A[i][j] = w;
+   }
   }
 
   for (int i = 0; i < _PB_N; i++) {
-     w = b[i];
+     DATA_TYPE w = b[i];
      for (int j = 0; j < i; j++)
         w -= A[i][j] * y[j];
      y[i] = w;
   }
 
    for (int i = _PB_N-1; i >=0; i--) {
-     w = y[i];
+     DATA_TYPE w = y[i];
      for (int j = i+1; j < _PB_N; j++)
         w -= A[i][j] * x[j];
      x[i] = w / A[i][i];
@@ -150,6 +153,29 @@ int main(int argc, char** argv)
   POLYBENCH_1D_ARRAY_DECL(y, DATA_TYPE, N, n);
 
 
+#ifdef BENCHMARK
+  /* Benchmark mode: run kernel N_BENCHMARK_ITERATIONS times and report median */
+  double benchmark_times[N_BENCHMARK_ITERATIONS];
+  for (int benchmark_iter = 0; benchmark_iter < N_BENCHMARK_ITERATIONS; benchmark_iter++) {
+    /* Initialize array(s). */
+    init_array (n,
+                POLYBENCH_ARRAY(A),
+                POLYBENCH_ARRAY(b),
+                POLYBENCH_ARRAY(x),
+                POLYBENCH_ARRAY(y));
+
+    /* Time the kernel */
+    BENCHMARK_BEGIN
+    kernel_ludcmp (n,
+                   POLYBENCH_ARRAY(A),
+                   POLYBENCH_ARRAY(b),
+                   POLYBENCH_ARRAY(x),
+                   POLYBENCH_ARRAY(y));
+    BENCHMARK_END
+    benchmark_times[benchmark_iter] = BENCHMARK_ELAPSED;
+  }
+  BENCHMARK_PRINT_MEDIAN(benchmark_times, N_BENCHMARK_ITERATIONS);
+#else
   /* Initialize array(s). */
   init_array (n,
 	      POLYBENCH_ARRAY(A),
@@ -170,6 +196,7 @@ int main(int argc, char** argv)
   /* Stop and print timer. */
   polybench_stop_instruments;
   polybench_print_instruments;
+#endif
 
   /* Prevent dead-code elimination. All live-out data must be printed
      by the function call in argument. */

@@ -18,6 +18,11 @@
 /* Include polybench common header. */
 #include <polybench.h>
 
+/* Include benchmark header for timing */
+#ifdef BENCHMARK
+#include <benchmark.h>
+#endif
+
 /* Include benchmark-specific header. */
 #include "symm.h"
 
@@ -119,6 +124,28 @@ int main(int argc, char** argv)
   POLYBENCH_2D_ARRAY_DECL(A,DATA_TYPE,M,M,m,m);
   POLYBENCH_2D_ARRAY_DECL(B,DATA_TYPE,M,N,m,n);
 
+#ifdef BENCHMARK
+  /* Benchmark mode: run kernel N_BENCHMARK_ITERATIONS times and report median */
+  double benchmark_times[N_BENCHMARK_ITERATIONS];
+  for (int benchmark_iter = 0; benchmark_iter < N_BENCHMARK_ITERATIONS; benchmark_iter++) {
+    /* Initialize array(s). */
+    init_array (m, n, &alpha, &beta,
+                POLYBENCH_ARRAY(C),
+                POLYBENCH_ARRAY(A),
+                POLYBENCH_ARRAY(B));
+
+    /* Time the kernel */
+    BENCHMARK_BEGIN
+    kernel_symm (m, n,
+                 alpha, beta,
+                 POLYBENCH_ARRAY(C),
+                 POLYBENCH_ARRAY(A),
+                 POLYBENCH_ARRAY(B));
+    BENCHMARK_END
+    benchmark_times[benchmark_iter] = BENCHMARK_ELAPSED;
+  }
+  BENCHMARK_PRINT_MEDIAN(benchmark_times, N_BENCHMARK_ITERATIONS);
+#else
   /* Initialize array(s). */
   init_array (m, n, &alpha, &beta,
 	      POLYBENCH_ARRAY(C),
@@ -138,6 +165,7 @@ int main(int argc, char** argv)
   /* Stop and print timer. */
   polybench_stop_instruments;
   polybench_print_instruments;
+#endif
 
   /* Prevent dead-code elimination. All live-out data must be printed
      by the function call in argument. */

@@ -18,6 +18,11 @@
 /* Include polybench common header. */
 #include <polybench.h>
 
+/* Include benchmark header for timing */
+#ifdef BENCHMARK
+#include <benchmark.h>
+#endif
+
 /* Include benchmark-specific header. */
 #include "floyd-warshall.h"
 
@@ -70,10 +75,17 @@ void kernel_floyd_warshall(int n,
 #pragma scop
   for (k = 0; k < _PB_N; k++)
     {
+      // Cache row k to avoid race condition in parallel execution.
+      // Without this, iteration i=k writes to path[k][j] while other
+      // iterations concurrently read path[k][j].
+      DATA_TYPE path_k_row[_PB_N];
+      for (int j = 0; j < _PB_N; j++)
+        path_k_row[j] = path[k][j];
+
       cilk_for(int i = 0; i < _PB_N; i++)
 	for (int j = 0; j < _PB_N; j++)
-	  path[i][j] = path[i][j] < path[i][k] + path[k][j] ?
-	    path[i][j] : path[i][k] + path[k][j];
+	  path[i][j] = path[i][j] < path[i][k] + path_k_row[j] ?
+	    path[i][j] : path[i][k] + path_k_row[j];
     }
 #pragma endscop
 
@@ -89,6 +101,21 @@ int main(int argc, char** argv)
   POLYBENCH_2D_ARRAY_DECL(path, DATA_TYPE, N, N, n, n);
 
 
+#ifdef BENCHMARK
+  /* Benchmark mode: run kernel N_BENCHMARK_ITERATIONS times and report median */
+  double benchmark_times[N_BENCHMARK_ITERATIONS];
+  for (int benchmark_iter = 0; benchmark_iter < N_BENCHMARK_ITERATIONS; benchmark_iter++) {
+    /* Initialize array(s). */
+    init_array (n, POLYBENCH_ARRAY(path));
+
+    /* Time the kernel */
+    BENCHMARK_BEGIN
+    kernel_floyd_warshall (n, POLYBENCH_ARRAY(path));
+    BENCHMARK_END
+    benchmark_times[benchmark_iter] = BENCHMARK_ELAPSED;
+  }
+  BENCHMARK_PRINT_MEDIAN(benchmark_times, N_BENCHMARK_ITERATIONS);
+#else
   /* Initialize array(s). */
   init_array (n, POLYBENCH_ARRAY(path));
 
@@ -101,6 +128,7 @@ int main(int argc, char** argv)
   /* Stop and print timer. */
   polybench_stop_instruments;
   polybench_print_instruments;
+#endif
 
   /* Prevent dead-code elimination. All live-out data must be printed
      by the function call in argument. */

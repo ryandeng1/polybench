@@ -4,6 +4,7 @@ PolyBench/C Automated Build Script
 Compiles all benchmarks in datamining, linear-algebra, medley, and stencils directories.
 """
 
+import argparse
 import os
 import subprocess
 import sys
@@ -23,9 +24,10 @@ TARGET_DIRS = [
 ]
 
 # Compilation settings
-CC = os.path.expanduser("~/data_race_analysis/build/bin/clang++")
-CFLAGS = ["-O3", "-fopencilk", "-march=native", "-fsanitize=cilk", "-g"]
-DEFINES = ["-DPOLYBENCH_TIME"]
+DEFAULT_DATASET_SIZE = "EXTRALARGE_DATASET"
+CC = os.path.expanduser("~/opencilk_build/bin/clang++")
+CFLAGS = ["-O3", "-fopencilk", "-g"]
+DEFINES = ["-DBENCHMARK", "-DPOLYBENCH_NO_FLUSH_CACHE"]
 LDFLAGS = ["-lm"]  # Math library for functions like sqrt
 
 # Output directory for compiled binaries
@@ -52,7 +54,7 @@ def find_benchmarks():
     return sorted(benchmarks)
 
 
-def compile_benchmark(benchmark_path):
+def compile_benchmark(benchmark_path, dataset_size: str, use_drfaa: bool):
     """
     Compile a single benchmark.
 
@@ -70,15 +72,19 @@ def compile_benchmark(benchmark_path):
     output_name = f"{benchmark_name}_time"
     output_path = OUTPUT_DIR / output_name
 
+    drfaa_flag = ["-mllvm", "-enable-drf-aa"] if use_drfaa else []
+
     # Build compile command
     cmd = [
         CC,
         *CFLAGS,
+        *drfaa_flag,
         f"-I{UTILITIES_DIR}",
         f"-I{benchmark_dir}",
         str(POLYBENCH_C),
         str(benchmark_path),
         *DEFINES,
+        f"-D{dataset_size}",
         *LDFLAGS,
         "-o", str(output_path)
     ]
@@ -98,6 +104,23 @@ def compile_benchmark(benchmark_path):
         raise e
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Test PolyBench/C benchmarks by comparing optimized vs reference outputs"
+    )
+    parser.add_argument(
+        "-d", "--dataset",
+        required=True,
+        choices=["MINI_DATASET", "SMALL_DATASET", "MEDIUM_DATASET",
+                 "LARGE_DATASET", "EXTRALARGE_DATASET"],
+        help=f"Dataset size to use (default: {DEFAULT_DATASET_SIZE})"
+    )
+    parser.add_argument(
+        "--drfaa",
+        action="store_true",
+        help=f"whether or not to use drfaa"
+    )
+    args = parser.parse_args()
+
     """Main build function."""
     print("=" * 70)
     print("PolyBench/C Automated Build Script")
@@ -130,7 +153,7 @@ def main():
 
         print(f"[{i}/{len(benchmarks)}] Compiling {rel_path}...", end=" ", flush=True)
 
-        output_path = compile_benchmark(benchmark)
+        output_path = compile_benchmark(benchmark, args.dataset, args.drfaa)
 
         print("✓")
         results["success"].append((rel_path, output_path))

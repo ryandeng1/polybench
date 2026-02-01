@@ -18,6 +18,11 @@
 /* Include polybench common header. */
 #include <polybench.h>
 
+/* Include benchmark header for timing */
+#ifdef BENCHMARK
+#include <benchmark.h>
+#endif
+
 /* Include benchmark-specific header. */
 #include "syrk.h"
 
@@ -106,6 +111,21 @@ int main(int argc, char** argv)
   POLYBENCH_2D_ARRAY_DECL(C,DATA_TYPE,N,N,n,n);
   POLYBENCH_2D_ARRAY_DECL(A,DATA_TYPE,N,M,n,m);
 
+#ifdef BENCHMARK
+  /* Benchmark mode: run kernel N_BENCHMARK_ITERATIONS times and report median */
+  double benchmark_times[N_BENCHMARK_ITERATIONS];
+  for (int benchmark_iter = 0; benchmark_iter < N_BENCHMARK_ITERATIONS; benchmark_iter++) {
+    /* Initialize array(s). */
+    init_array (n, m, &alpha, &beta, POLYBENCH_ARRAY(C), POLYBENCH_ARRAY(A));
+
+    /* Time the kernel */
+    BENCHMARK_BEGIN
+    kernel_syrk (n, m, alpha, beta, POLYBENCH_ARRAY(C), POLYBENCH_ARRAY(A));
+    BENCHMARK_END
+    benchmark_times[benchmark_iter] = BENCHMARK_ELAPSED;
+  }
+  BENCHMARK_PRINT_MEDIAN(benchmark_times, N_BENCHMARK_ITERATIONS);
+#else
   /* Initialize array(s). */
   init_array (n, m, &alpha, &beta, POLYBENCH_ARRAY(C), POLYBENCH_ARRAY(A));
 
@@ -118,6 +138,7 @@ int main(int argc, char** argv)
   /* Stop and print timer. */
   polybench_stop_instruments;
   polybench_print_instruments;
+#endif
 
   /* Prevent dead-code elimination. All live-out data must be printed
      by the function call in argument. */

@@ -18,6 +18,11 @@
 /* Include polybench common header. */
 #include <polybench.h>
 
+/* Include benchmark header for timing */
+#ifdef BENCHMARK
+#include <benchmark.h>
+#endif
+
 /* Include benchmark-specific header. */
 #include "covariance.h"
 
@@ -110,6 +115,24 @@ int main(int argc, char** argv)
   POLYBENCH_1D_ARRAY_DECL(mean,DATA_TYPE,M,m);
 
 
+#ifdef BENCHMARK
+  /* Benchmark mode: run kernel N_BENCHMARK_ITERATIONS times and report median */
+  double benchmark_times[N_BENCHMARK_ITERATIONS];
+  for (int benchmark_iter = 0; benchmark_iter < N_BENCHMARK_ITERATIONS; benchmark_iter++) {
+    /* Initialize array(s). */
+    init_array (m, n, &float_n, POLYBENCH_ARRAY(data));
+
+    /* Time the kernel */
+    BENCHMARK_BEGIN
+    kernel_covariance (m, n, float_n,
+                       POLYBENCH_ARRAY(data),
+                       POLYBENCH_ARRAY(cov),
+                       POLYBENCH_ARRAY(mean));
+    BENCHMARK_END
+    benchmark_times[benchmark_iter] = BENCHMARK_ELAPSED;
+  }
+  BENCHMARK_PRINT_MEDIAN(benchmark_times, N_BENCHMARK_ITERATIONS);
+#else
   /* Initialize array(s). */
   init_array (m, n, &float_n, POLYBENCH_ARRAY(data));
 
@@ -125,6 +148,7 @@ int main(int argc, char** argv)
   /* Stop and print timer. */
   polybench_stop_instruments;
   polybench_print_instruments;
+#endif
 
   /* Prevent dead-code elimination. All live-out data must be printed
      by the function call in argument. */

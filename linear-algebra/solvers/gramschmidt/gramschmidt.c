@@ -18,6 +18,11 @@
 /* Include polybench common header. */
 #include <polybench.h>
 
+/* Include benchmark header for timing */
+#ifdef BENCHMARK
+#include <benchmark.h>
+#endif
+
 /* Include benchmark-specific header. */
 #include "gramschmidt.h"
 
@@ -29,16 +34,19 @@ void init_array(int m, int n,
 		DATA_TYPE POLYBENCH_2D(R,N,N,n,n),
 		DATA_TYPE POLYBENCH_2D(Q,M,N,m,n))
 {
-  int i, j;
+  // int i, j;
 
-  for (i = 0; i < m; i++)
-    for (j = 0; j < n; j++) {
+  cilk_for (int i = 0; i < m; i++) {
+    cilk_for (int j = 0; j < n; j++) {
       A[i][j] = (((DATA_TYPE) ((i*j) % m) / m )*100) + 10;
       Q[i][j] = 0.0;
     }
-  for (i = 0; i < n; i++)
-    for (j = 0; j < n; j++)
+  }
+  cilk_for (int i = 0; i < n; i++) {
+    cilk_for (int j = 0; j < n; j++) {
       R[i][j] = 0.0;
+    }
+  }
 }
 
 
@@ -93,14 +101,14 @@ void kernel_gramschmidt(int m, int n,
       for (int i = 0; i < _PB_M; i++)
         nrm += A[i][k] * A[i][k];
       R[k][k] = SQRT_FUN(nrm);
-      for (int i = 0; i < _PB_M; i++)
+      cilk_for (int i = 0; i < _PB_M; i++)
         Q[i][k] = A[i][k] / R[k][k];
       for (int j = k + 1; j < _PB_N; j++)
 	{
 	  R[k][j] = SCALAR_VAL(0.0);
 	  for (int i = 0; i < _PB_M; i++)
 	    R[k][j] += Q[i][k] * A[i][j];
-	  for (int i = 0; i < _PB_M; i++)
+	  cilk_for (int i = 0; i < _PB_M; i++)
 	    A[i][j] = A[i][j] - Q[i][k] * R[k][j];
 	}
     }
@@ -120,6 +128,27 @@ int main(int argc, char** argv)
   POLYBENCH_2D_ARRAY_DECL(R,DATA_TYPE,N,N,n,n);
   POLYBENCH_2D_ARRAY_DECL(Q,DATA_TYPE,M,N,m,n);
 
+#ifdef BENCHMARK
+  /* Benchmark mode: run kernel N_BENCHMARK_ITERATIONS times and report median */
+  double benchmark_times[N_BENCHMARK_ITERATIONS];
+  for (int benchmark_iter = 0; benchmark_iter < N_BENCHMARK_ITERATIONS; benchmark_iter++) {
+    /* Initialize array(s). */
+    init_array (m, n,
+	      POLYBENCH_ARRAY(A),
+	      POLYBENCH_ARRAY(R),
+	      POLYBENCH_ARRAY(Q));
+
+    /* Time the kernel */
+    BENCHMARK_BEGIN
+    kernel_gramschmidt (m, n,
+		      POLYBENCH_ARRAY(A),
+		      POLYBENCH_ARRAY(R),
+		      POLYBENCH_ARRAY(Q));
+    BENCHMARK_END
+    benchmark_times[benchmark_iter] = BENCHMARK_ELAPSED;
+  }
+  BENCHMARK_PRINT_MEDIAN(benchmark_times, N_BENCHMARK_ITERATIONS);
+#else
   /* Initialize array(s). */
   init_array (m, n,
 	      POLYBENCH_ARRAY(A),
@@ -138,6 +167,7 @@ int main(int argc, char** argv)
   /* Stop and print timer. */
   polybench_stop_instruments;
   polybench_print_instruments;
+#endif
 
   /* Prevent dead-code elimination. All live-out data must be printed
      by the function call in argument. */

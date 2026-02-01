@@ -18,6 +18,11 @@
 /* Include polybench common header. */
 #include <polybench.h>
 
+/* Include benchmark header for timing */
+#ifdef BENCHMARK
+#include <benchmark.h>
+#endif
+
 /* Include benchmark-specific header. */
 #include "doitgen.h"
 
@@ -73,12 +78,12 @@ void kernel_doitgen(int nr, int nq, int np,
 #pragma scop
   for (int r = 0; r < _PB_NR; r++)
     for (int q = 0; q < _PB_NQ; q++)  {
-      for (int p = 0; p < _PB_NP; p++)  {
+      cilk_for (int p = 0; p < _PB_NP; p++)  {
 	sum[p] = SCALAR_VAL(0.0);
 	for (int s = 0; s < _PB_NP; s++)
 	  sum[p] += A[r][q][s] * C4[s][p];
       }
-      for (int p = 0; p < _PB_NP; p++)
+      cilk_for (int p = 0; p < _PB_NP; p++)
 	A[r][q][p] = sum[p];
     }
 #pragma endscop
@@ -98,6 +103,26 @@ int main(int argc, char** argv)
   POLYBENCH_1D_ARRAY_DECL(sum,DATA_TYPE,NP,np);
   POLYBENCH_2D_ARRAY_DECL(C4,DATA_TYPE,NP,NP,np,np);
 
+#ifdef BENCHMARK
+  /* Benchmark mode: run kernel N_BENCHMARK_ITERATIONS times and report median */
+  double benchmark_times[N_BENCHMARK_ITERATIONS];
+  for (int benchmark_iter = 0; benchmark_iter < N_BENCHMARK_ITERATIONS; benchmark_iter++) {
+    /* Initialize array(s). */
+    init_array (nr, nq, np,
+	      POLYBENCH_ARRAY(A),
+	      POLYBENCH_ARRAY(C4));
+
+    /* Time the kernel */
+    BENCHMARK_BEGIN
+    kernel_doitgen (nr, nq, np,
+		  POLYBENCH_ARRAY(A),
+		  POLYBENCH_ARRAY(C4),
+		  POLYBENCH_ARRAY(sum));
+    BENCHMARK_END
+    benchmark_times[benchmark_iter] = BENCHMARK_ELAPSED;
+  }
+  BENCHMARK_PRINT_MEDIAN(benchmark_times, N_BENCHMARK_ITERATIONS);
+#else
   /* Initialize array(s). */
   init_array (nr, nq, np,
 	      POLYBENCH_ARRAY(A),
@@ -115,6 +140,7 @@ int main(int argc, char** argv)
   /* Stop and print timer. */
   polybench_stop_instruments;
   polybench_print_instruments;
+#endif
 
   /* Prevent dead-code elimination. All live-out data must be printed
      by the function call in argument. */
