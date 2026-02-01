@@ -26,14 +26,6 @@ def run_binary(bin_path: Path):
     assert result.returncode == 0, f"result: {result.stdout}\n{result.stderr}"
     return float(result.stdout)
 
-    # runtimes = []
-    # for _ in range(100):
-    #     result = subprocess.run(bin_path, text=True, capture_output=True)
-    #     assert result.returncode == 0, f"result: {result.stdout}\n{result.stderr}"
-    #     runtimes.append(float(result.stdout))
-
-    # return statistics.median(runtimes)
-
 def run_all_binaries(output: str):
     bench_result = {}
     for fname in os.listdir(BIN_DIR):
