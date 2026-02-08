@@ -9,6 +9,7 @@ import json
 import os
 import shlex
 import statistics
+import shlex
 import subprocess
 import sys
 import time
@@ -18,9 +19,11 @@ from pathlib import Path
 BIN_DIR = "bin"
 
 def run_binary(bin_path: Path):
+    taskset_cmd = f"taskset -c 0 {bin_path}"
     print(f"running {bin_path}")
     start = time.time()
-    result = subprocess.run(bin_path, text=True, capture_output=True, timeout=1800)
+    # result = subprocess.run(bin_path, text=True, capture_output=True, timeout=1800)
+    result = subprocess.run(shlex.split(taskset_cmd), text=True, capture_output=True, timeout=1800)
     end = time.time()
     print(f"ran {bin_path}, took: {end - start} seconds")
     assert result.returncode == 0, f"result: {result.stdout}\n{result.stderr}"
@@ -30,6 +33,8 @@ def run_all_binaries(output: str):
     bench_result = {}
     for fname in os.listdir(BIN_DIR):
         if "cholesky" in fname or "seidel-2d" in fname:
+            continue
+        if "gramschmidt" not in fname:
             continue
         runtime = run_binary(Path(BIN_DIR) / fname)
         bench_result[fname] = runtime

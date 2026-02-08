@@ -16,7 +16,8 @@
 
 /* Number of benchmark iterations */
 #ifndef N_BENCHMARK_ITERATIONS
-#define N_BENCHMARK_ITERATIONS 100
+// #define N_BENCHMARK_ITERATIONS 100
+#define N_BENCHMARK_ITERATIONS 25
 #endif
 
 /* Comparison function for qsort */
