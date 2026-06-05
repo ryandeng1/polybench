@@ -84,8 +84,25 @@ void kernel_bicg(int m, int n,
 		 DATA_TYPE POLYBENCH_1D(r,N,n))
 {
   int j;
-
 #pragma scop
+  /* Fissioned form: the original fuses two reductions into one serial i-loop
+     because s[j] carries a cross-i dependence. Splitting them exposes each
+     half on its natural parallel axis.
+       q = A * p   -> parallel over rows i    (row-indexed: sound DRFAA target)
+       s = A^T * r -> parallel over columns j (col-indexed: genuine DRFAA wall) */
+  cilk_for (int i = 0; i < _PB_N; i++)
+    {
+      q[i] = SCALAR_VAL(0.0);
+      for (int j = 0; j < _PB_M; j++)
+	q[i] = q[i] + A[i][j] * p[j];
+    }
+  cilk_for (int j = 0; j < _PB_M; j++)
+    {
+      s[j] = SCALAR_VAL(0.0);
+      for (int i = 0; i < _PB_N; i++)
+	s[j] = s[j] + r[i] * A[i][j];
+    }
+  /*
   cilk_for (int i = 0; i < _PB_M; i++)
     s[i] = 0;
   for (int i = 0; i < _PB_N; i++)
@@ -97,6 +114,8 @@ void kernel_bicg(int m, int n,
 	  q[i] = q[i] + A[i][j] * p[j];
 	}
     }
+#endif
+  */
 #pragma endscop
 
 }
@@ -104,6 +123,8 @@ void kernel_bicg(int m, int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
   int m = M;
@@ -170,6 +191,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(q);
   POLYBENCH_FREE_ARRAY(p);
   POLYBENCH_FREE_ARRAY(r);
+  }
 
   return 0;
 }

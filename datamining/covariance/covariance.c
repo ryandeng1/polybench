@@ -74,7 +74,6 @@ void kernel_covariance(int m, int n,
 		       DATA_TYPE POLYBENCH_1D(mean,M,m))
 {
   int i, j, k;
-
 #pragma scop
   cilk_for (int j = 0; j < _PB_M; j++)
     {
@@ -85,11 +84,11 @@ void kernel_covariance(int m, int n,
     }
 
   cilk_for (int i = 0; i < _PB_N; i++)
-    for (int j = 0; j < _PB_M; j++)
+    cilk_for (int j = 0; j < _PB_M; j++)
       data[i][j] -= mean[j];
 
   cilk_for (int i = 0; i < _PB_M; i++)
-    for (int j = i; j < _PB_M; j++)
+    cilk_for (int j = i; j < _PB_M; j++)
       {
         cov[i][j] = SCALAR_VAL(0.0);
         for (int k = 0; k < _PB_N; k++)
@@ -104,6 +103,8 @@ void kernel_covariance(int m, int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
   int m = M;
@@ -158,6 +159,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(data);
   POLYBENCH_FREE_ARRAY(cov);
   POLYBENCH_FREE_ARRAY(mean);
+  }
 
   return 0;
 }

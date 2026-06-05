@@ -74,15 +74,14 @@ void kernel_jacobi_2d(int tsteps,
 			    DATA_TYPE POLYBENCH_2D(B,N,N,n,n))
 {
   int t, i, j;
-
 #pragma scop
   for (t = 0; t < _PB_TSTEPS; t++)
     {
       cilk_for (int i = 1; i < _PB_N - 1; i++)
-	for (int j = 1; j < _PB_N - 1; j++)
+	cilk_for (int j = 1; j < _PB_N - 1; j++)
 	  B[i][j] = SCALAR_VAL(0.2) * (A[i][j] + A[i][j-1] + A[i][1+j] + A[1+i][j] + A[i-1][j]);
       cilk_for (int i = 1; i < _PB_N - 1; i++)
-	for (int j = 1; j < _PB_N - 1; j++)
+	cilk_for (int j = 1; j < _PB_N - 1; j++)
 	  A[i][j] = SCALAR_VAL(0.2) * (B[i][j] + B[i][j-1] + B[i][1+j] + B[1+i][j] + B[i-1][j]);
     }
 #pragma endscop
@@ -92,6 +91,8 @@ void kernel_jacobi_2d(int tsteps,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
   int tsteps = TSTEPS;
@@ -137,6 +138,7 @@ int main(int argc, char** argv)
   /* Be clean. */
   POLYBENCH_FREE_ARRAY(A);
   POLYBENCH_FREE_ARRAY(B);
+  }
 
   return 0;
 }

@@ -92,13 +92,14 @@ void kernel_syr2k(int n, int m,
 //C is NxN
 #pragma scop
   cilk_for (int i = 0; i < _PB_N; i++) {
-    for (int j = 0; j <= i; j++)
+    cilk_for (int j = 0; j <= i; j++) {
       C[i][j] *= beta;
-    for (int k = 0; k < _PB_M; k++)
-      for (int j = 0; j <= i; j++)
-	{
-	  C[i][j] += A[j][k]*alpha*B[i][k] + B[j][k]*alpha*A[i][k];
-	}
+    }
+    cilk_for (int j = 0; j <= i; j++) {
+      for (int k = 0; k < _PB_M; k++) {
+	      C[i][j] += A[j][k]*alpha*B[i][k] + B[j][k]*alpha*A[i][k];
+      }
+	  }
   }
 #pragma endscop
 
@@ -107,6 +108,8 @@ void kernel_syr2k(int n, int m,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
   int m = M;
@@ -169,6 +172,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(C);
   POLYBENCH_FREE_ARRAY(A);
   POLYBENCH_FREE_ARRAY(B);
+  }
 
   return 0;
 }

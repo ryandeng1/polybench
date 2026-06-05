@@ -81,7 +81,6 @@ void kernel_adi(int tsteps, int n,
   DATA_TYPE B1, B2;
   DATA_TYPE mul1, mul2;
   DATA_TYPE a, b, c, d, e, f;
-
 #pragma scop
 
   DX = SCALAR_VAL(1.0)/(DATA_TYPE)_PB_N;
@@ -101,7 +100,8 @@ void kernel_adi(int tsteps, int n,
 
  for (t=1; t<=_PB_TSTEPS; t++) {
     //Column Sweep
-    cilk_for (int i=1; i<_PB_N-1; i++) {
+    // cilk_for (int i=1; i<_PB_N-1; i++) {
+    for (int i=1; i<_PB_N-1; i++) {
       v[0][i] = SCALAR_VAL(1.0);
       p[i][0] = SCALAR_VAL(0.0);
       q[i][0] = v[0][i];
@@ -116,7 +116,8 @@ void kernel_adi(int tsteps, int n,
       }
     }
     //Row Sweep
-    cilk_for (int i=1; i<_PB_N-1; i++) {
+    // cilk_for (int i=1; i<_PB_N-1; i++) {
+    for (int i=1; i<_PB_N-1; i++) {
       u[i][0] = SCALAR_VAL(1.0);
       p[i][0] = SCALAR_VAL(0.0);
       q[i][0] = u[i][0];
@@ -136,6 +137,8 @@ void kernel_adi(int tsteps, int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
   int tsteps = TSTEPS;
@@ -185,6 +188,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(v);
   POLYBENCH_FREE_ARRAY(p);
   POLYBENCH_FREE_ARRAY(q);
+  }
 
   return 0;
 }

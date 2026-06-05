@@ -87,7 +87,6 @@ void kernel_nussinov(int n, base POLYBENCH_1D(seq,N,n),
 			   DATA_TYPE POLYBENCH_2D(table,N,N,n,n))
 {
   int i;
-
 #pragma scop
  for (i = _PB_N-1; i >= 0; i--) {
   for (int j=i+1; j<_PB_N; j++) {
@@ -117,6 +116,8 @@ void kernel_nussinov(int n, base POLYBENCH_1D(seq,N,n),
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
 
@@ -160,6 +161,7 @@ int main(int argc, char** argv)
   /* Be clean. */
   POLYBENCH_FREE_ARRAY(seq);
   POLYBENCH_FREE_ARRAY(table);
+  }
 
   return 0;
 }

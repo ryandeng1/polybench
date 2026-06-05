@@ -14,6 +14,7 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+// #include <cilk/cilk_api.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -71,21 +72,23 @@ void kernel_floyd_warshall(int n,
 			   DATA_TYPE POLYBENCH_2D(path,N,N,n,n))
 {
   int k;
-
 #pragma scop
   for (k = 0; k < _PB_N; k++)
     {
       // Cache row k to avoid race condition in parallel execution.
       // Without this, iteration i=k writes to path[k][j] while other
       // iterations concurrently read path[k][j].
-      DATA_TYPE path_k_row[_PB_N];
-      for (int j = 0; j < _PB_N; j++)
-        path_k_row[j] = path[k][j];
+      // DATA_TYPE path_k_row[_PB_N];
+      // for (int j = 0; j < _PB_N; j++)
+      //   path_k_row[j] = path[k][j];
 
-      cilk_for(int i = 0; i < _PB_N; i++)
-	for (int j = 0; j < _PB_N; j++)
-	  path[i][j] = path[i][j] < path[i][k] + path_k_row[j] ?
-	    path[i][j] : path[i][k] + path_k_row[j];
+      cilk_for(int i = 0; i < _PB_N; i++) {
+	      cilk_for (int j = 0; j < _PB_N; j++) {
+          // int via = path[i][k] + path[k][j];
+          // if (via < path[i][j]) path[i][j] = via;
+	        path[i][j] = path[i][j] < path[i][k] + path[k][j] ? path[i][j] : path[i][k] + path[k][j];
+        }
+      }
     }
 #pragma endscop
 
@@ -94,6 +97,9 @@ void kernel_floyd_warshall(int n,
 
 int main(int argc, char** argv)
 {
+  // printf("nworkers: %d\n", __cilkrts_get_nworkers());
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
 
@@ -136,6 +142,7 @@ int main(int argc, char** argv)
 
   /* Be clean. */
   POLYBENCH_FREE_ARRAY(path);
+  }
 
   return 0;
 }

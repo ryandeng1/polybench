@@ -23,8 +23,10 @@
 #  endif
 
 #  ifdef SMALL_DATASET
-#   define M 60
-#   define N 80
+// #   define M 60
+// #   define N 80
+#   define M 80
+#   define N 60
 #  endif
 
 #  ifdef MEDIUM_DATASET

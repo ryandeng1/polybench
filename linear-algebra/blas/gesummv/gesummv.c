@@ -84,19 +84,16 @@ void kernel_gesummv(int n,
 		    DATA_TYPE POLYBENCH_1D(y,N,n))
 {
   int i, j;
-
 #pragma scop
-  cilk_for (int i = 0; i < _PB_N; i++)
-    {
-      tmp[i] = SCALAR_VAL(0.0);
-      y[i] = SCALAR_VAL(0.0);
-      for (int j = 0; j < _PB_N; j++)
-	{
-	  tmp[i] = A[i][j] * x[j] + tmp[i];
-	  y[i] = B[i][j] * x[j] + y[i];
-	}
-      y[i] = alpha * tmp[i] + beta * y[i];
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    tmp[i] = SCALAR_VAL(0.0);
+    y[i] = SCALAR_VAL(0.0);
+    for (int j = 0; j < _PB_N; j++) {
+      tmp[i] = A[i][j] * x[j] + tmp[i];
+      y[i] = B[i][j] * x[j] + y[i];
     }
+    y[i] = alpha * tmp[i] + beta * y[i];
+  }
 #pragma endscop
 
 }
@@ -104,6 +101,8 @@ void kernel_gesummv(int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
 
@@ -172,6 +171,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(tmp);
   POLYBENCH_FREE_ARRAY(x);
   POLYBENCH_FREE_ARRAY(y);
+  }
 
   return 0;
 }

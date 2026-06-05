@@ -14,6 +14,7 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#include <cilk/opadd_reducer>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -74,18 +75,25 @@ void kernel_doitgen(int nr, int nq, int np,
 		    DATA_TYPE POLYBENCH_1D(sum,NP,np))
 {
   int q, p, s;
+  // cilk::opadd_reducer<double> sum_r = 0;
 
 #pragma scop
-  for (int r = 0; r < _PB_NR; r++)
+  for (int r = 0; r < _PB_NR; r++) {
     for (int q = 0; q < _PB_NQ; q++)  {
       cilk_for (int p = 0; p < _PB_NP; p++)  {
-	sum[p] = SCALAR_VAL(0.0);
-	for (int s = 0; s < _PB_NP; s++)
-	  sum[p] += A[r][q][s] * C4[s][p];
+	      sum[p] = SCALAR_VAL(0.0);
+        // auto sum_r = SCALAR_VAL(0.0);
+	      for (int s = 0; s < _PB_NP; s++) {
+	        sum[p] += A[r][q][s] * C4[s][p];
+          // sum_r += A[r][q][s] * C4[s][p];
+        }
+        // sum[p] = sum_r;
       }
-      cilk_for (int p = 0; p < _PB_NP; p++)
-	A[r][q][p] = sum[p];
+      cilk_for (int p = 0; p < _PB_NP; p++) {
+	      A[r][q][p] = sum[p];
+      }
     }
+  }
 #pragma endscop
 
 }
@@ -93,6 +101,8 @@ void kernel_doitgen(int nr, int nq, int np,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int nr = NR;
   int nq = NQ;
@@ -150,6 +160,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(A);
   POLYBENCH_FREE_ARRAY(sum);
   POLYBENCH_FREE_ARRAY(C4);
+  }
 
   return 0;
 }

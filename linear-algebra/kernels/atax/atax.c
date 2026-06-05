@@ -75,8 +75,8 @@ void kernel_atax(int m, int n,
 		 DATA_TYPE POLYBENCH_1D(tmp,M,m))
 {
   int j;
-
 #pragma scop
+  /*
   cilk_for (int i = 0; i < _PB_N; i++)
     y[i] = 0;
   for (int i = 0; i < _PB_M; i++)
@@ -87,6 +87,21 @@ void kernel_atax(int m, int n,
       for (int j = 0; j < _PB_N; j++)
 	y[j] = y[j] + A[i][j] * tmp[i];
     }
+  */
+  
+  cilk_for (int i = 0; i < _PB_M; i++) {
+    tmp[i] = SCALAR_VAL(0.0);
+    for (int j = 0; j < _PB_N; j++) {
+	    tmp[i] = tmp[i] + A[i][j] * x[j];
+    }
+  }
+
+  cilk_for (int j = 0; j < _PB_N; j++) {
+    y[j] = 0;
+    for (int i = 0; i < _PB_M; i++) {
+	    y[j] = y[j] + A[i][j] * tmp[i];
+    }
+  }
 #pragma endscop
 
 }
@@ -94,6 +109,8 @@ void kernel_atax(int m, int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int m = M;
   int n = N;
@@ -150,6 +167,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(x);
   POLYBENCH_FREE_ARRAY(y);
   POLYBENCH_FREE_ARRAY(tmp);
+  }
 
   return 0;
 }

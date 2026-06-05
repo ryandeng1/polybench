@@ -92,12 +92,25 @@ void kernel_gemm(int ni, int nj, int nk,
 //B is NKxNJ
 //C is NIxNJ
 #pragma scop
+  /*
   cilk_for (int i = 0; i < _PB_NI; i++) {
-    cilk_for (int j = 0; j < _PB_NJ; j++)
-	C[i][j] *= beta;
+    cilk_for (int j = 0; j < _PB_NJ; j++) {
+	    C[i][j] *= beta;
+    }
     for (int k = 0; k < _PB_NK; k++) {
-       for (int j = 0; j < _PB_NJ; j++)
-	  C[i][j] += alpha * A[i][k] * B[k][j];
+      cilk_for (int j = 0; j < _PB_NJ; j++) {
+	      C[i][j] += alpha * A[i][k] * B[k][j];
+      }
+    }
+  }
+  */
+  // this implementation gets speedup
+  cilk_for (int i = 0; i < _PB_NI; i++) {
+    cilk_for (int j = 0; j < _PB_NJ; j++) {
+	    C[i][j] *= beta;
+      for (int k = 0; k < _PB_NK; k++) {
+	      C[i][j] += alpha * A[i][k] * B[k][j];
+      }
     }
   }
 #pragma endscop
@@ -107,6 +120,8 @@ void kernel_gemm(int ni, int nj, int nk,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int ni = NI;
   int nj = NJ;
@@ -170,6 +185,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(C);
   POLYBENCH_FREE_ARRAY(A);
   POLYBENCH_FREE_ARRAY(B);
+  }
 
   return 0;
 }

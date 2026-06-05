@@ -101,30 +101,47 @@ void kernel_gemver(int n,
 		   DATA_TYPE POLYBENCH_1D(z,N,n))
 {
   int i, j;
-
 #pragma scop
-
-  cilk_for (int i = 0; i < _PB_N; i++)
-    for (int j = 0; j < _PB_N; j++)
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    cilk_for (int j = 0; j < _PB_N; j++) {
       A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
-
-  cilk_for (int i = 0; i < _PB_N; i++)
-    for (int j = 0; j < _PB_N; j++)
+    }
+  }
+  
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    x[i] = SCALAR_VAL(0);
+    for (int j = 0; j < _PB_N; j++) {
       x[i] = x[i] + beta * A[j][i] * y[j];
-
-  cilk_for (int i = 0; i < _PB_N; i++)
+    }
     x[i] = x[i] + z[i];
+  }
 
-  cilk_for (int i = 0; i < _PB_N; i++)
-    for (int j = 0; j < _PB_N; j++)
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    w[i] = SCALAR_VAL(0);
+    for (int j = 0; j < _PB_N; j++) {
       w[i] = w[i] +  alpha * A[i][j] * x[j];
+    }
+  }
 
+  /*
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    for (int j = 0; j < _PB_N; j++) {
+      x[i] = x[i] + beta * A[j][i] * y[j];
+    }
+  }
+
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    x[i] = x[i] + z[i];
+  }
+  */
 #pragma endscop
 }
 
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
 
@@ -221,6 +238,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(x);
   POLYBENCH_FREE_ARRAY(y);
   POLYBENCH_FREE_ARRAY(z);
+  }
 
   return 0;
 }

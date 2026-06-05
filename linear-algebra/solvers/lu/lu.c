@@ -90,7 +90,6 @@ void kernel_lu(int n,
 	       DATA_TYPE POLYBENCH_2D(A,N,N,n,n))
 {
   int i, j, k;
-
 #pragma scop
   for (int i = 0; i < _PB_N; i++) {
     for (int j = 0; j <i; j++) {
@@ -100,11 +99,11 @@ void kernel_lu(int n,
        A[i][j] /= A[j][j];
     }
    cilk_for (int j = i; j < _PB_N; j++) {
-      DATA_TYPE w = A[i][j];
+      // DATA_TYPE w = A[i][j];
       for (int k = 0; k < i; k++) {
-         w -= A[i][k] * A[k][j];
+        A[i][j] -= A[i][k] * A[k][j];
       }
-      A[i][j] = w;
+      // A[i][j] = w;
    }
   }
 #pragma endscop
@@ -113,6 +112,8 @@ void kernel_lu(int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
 
@@ -154,6 +155,7 @@ int main(int argc, char** argv)
 
   /* Be clean. */
   POLYBENCH_FREE_ARRAY(A);
+  }
 
   return 0;
 }

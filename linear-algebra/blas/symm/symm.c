@@ -113,6 +113,8 @@ void kernel_symm(int m, int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int m = M;
   int n = N;
@@ -175,6 +177,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(C);
   POLYBENCH_FREE_ARRAY(A);
   POLYBENCH_FREE_ARRAY(B);
+  }
 
   return 0;
 }

@@ -69,7 +69,6 @@ void kernel_seidel_2d(int tsteps,
 		      DATA_TYPE POLYBENCH_2D(A,N,N,n,n))
 {
   int t, i, j;
-
 #pragma scop
   for (t = 0; t <= _PB_TSTEPS - 1; t++)
     for (int i = 1; i<= _PB_N - 2; i++)
@@ -84,6 +83,8 @@ void kernel_seidel_2d(int tsteps,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
   int tsteps = TSTEPS;
@@ -127,6 +128,7 @@ int main(int argc, char** argv)
 
   /* Be clean. */
   POLYBENCH_FREE_ARRAY(A);
+  }
 
   return 0;
 }

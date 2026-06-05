@@ -83,7 +83,6 @@ void kernel_deriche(int w, int h, DATA_TYPE alpha,
     DATA_TYPE k;
     DATA_TYPE a1, a2, a3, a4, a5, a6, a7, a8;
     DATA_TYPE b1, b2, c1, c2;
-
 #pragma scop
    k = (SCALAR_VAL(1.0)-EXP_FUN(-alpha))*(SCALAR_VAL(1.0)-EXP_FUN(-alpha))/(SCALAR_VAL(1.0)+SCALAR_VAL(2.0)*alpha*EXP_FUN(-alpha)-EXP_FUN(SCALAR_VAL(2.0)*alpha));
    a1 = a5 = k;
@@ -95,9 +94,9 @@ void kernel_deriche(int w, int h, DATA_TYPE alpha,
    c1 = c2 = 1;
 
    cilk_for (int i=0; i<_PB_W; i++) {
-        ym1 = SCALAR_VAL(0.0);
-        ym2 = SCALAR_VAL(0.0);
-        xm1 = SCALAR_VAL(0.0);
+      DATA_TYPE ym1 = SCALAR_VAL(0.0);
+      DATA_TYPE ym2 = SCALAR_VAL(0.0);
+      DATA_TYPE xm1 = SCALAR_VAL(0.0);
         for (int j=0; j<_PB_H; j++) {
             y1[i][j] = a1*imgIn[i][j] + a2*xm1 + b1*ym1 + b2*ym2;
             xm1 = imgIn[i][j];
@@ -107,10 +106,10 @@ void kernel_deriche(int w, int h, DATA_TYPE alpha,
     }
 
     cilk_for (int i=0; i<_PB_W; i++) {
-        yp1 = SCALAR_VAL(0.0);
-        yp2 = SCALAR_VAL(0.0);
-        xp1 = SCALAR_VAL(0.0);
-        xp2 = SCALAR_VAL(0.0);
+        DATA_TYPE yp1 = SCALAR_VAL(0.0);
+        DATA_TYPE yp2 = SCALAR_VAL(0.0);
+        DATA_TYPE xp1 = SCALAR_VAL(0.0);
+        DATA_TYPE xp2 = SCALAR_VAL(0.0);
         for (int j=_PB_H-1; j>=0; j--) {
             y2[i][j] = a3*xp1 + a4*xp2 + b1*yp1 + b2*yp2;
             xp2 = xp1;
@@ -120,15 +119,16 @@ void kernel_deriche(int w, int h, DATA_TYPE alpha,
         }
     }
 
-    cilk_for (int i=0; i<_PB_W; i++)
-        for (int j=0; j<_PB_H; j++) {
-            imgOut[i][j] = c1 * (y1[i][j] + y2[i][j]);
-        }
+    cilk_for (int i=0; i<_PB_W; i++) {
+      cilk_for (int j=0; j<_PB_H; j++) {
+        imgOut[i][j] = c1 * (y1[i][j] + y2[i][j]);
+      }
+    }
 
     cilk_for (int j=0; j<_PB_H; j++) {
-        tm1 = SCALAR_VAL(0.0);
-        ym1 = SCALAR_VAL(0.0);
-        ym2 = SCALAR_VAL(0.0);
+        DATA_TYPE tm1 = SCALAR_VAL(0.0);
+        DATA_TYPE ym1 = SCALAR_VAL(0.0);
+        DATA_TYPE ym2 = SCALAR_VAL(0.0);
         for (int i=0; i<_PB_W; i++) {
             y1[i][j] = a5*imgOut[i][j] + a6*tm1 + b1*ym1 + b2*ym2;
             tm1 = imgOut[i][j];
@@ -152,9 +152,11 @@ void kernel_deriche(int w, int h, DATA_TYPE alpha,
         }
     }
 
-    cilk_for (int i=0; i<_PB_W; i++)
-        for (int j=0; j<_PB_H; j++)
-            imgOut[i][j] = c2*(y1[i][j] + y2[i][j]);
+    cilk_for (int i=0; i<_PB_W; i++) {
+      cilk_for (int j=0; j<_PB_H; j++) {
+        imgOut[i][j] = c2*(y1[i][j] + y2[i][j]);
+      }
+    }
 
 #pragma endscop
 }
@@ -162,6 +164,8 @@ void kernel_deriche(int w, int h, DATA_TYPE alpha,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int w = W;
   int h = H;
@@ -212,6 +216,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(imgOut);
   POLYBENCH_FREE_ARRAY(y1);
   POLYBENCH_FREE_ARRAY(y2);
+  }
 
   return 0;
 }

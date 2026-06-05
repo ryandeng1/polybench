@@ -102,21 +102,20 @@ void kernel_fdtd_2d(int tmax,
 		    DATA_TYPE POLYBENCH_1D(_fict_,TMAX,tmax))
 {
   int t, i, j;
-
 #pragma scop
 
   for(t = 0; t < _PB_TMAX; t++)
     {
-      for (int j = 0; j < _PB_NY; j++)
+      cilk_for (int j = 0; j < _PB_NY; j++)
 	ey[0][j] = _fict_[t];
       cilk_for (int i = 1; i < _PB_NX; i++)
-	for (int j = 0; j < _PB_NY; j++)
+	cilk_for (int j = 0; j < _PB_NY; j++)
 	  ey[i][j] = ey[i][j] - SCALAR_VAL(0.5)*(hz[i][j]-hz[i-1][j]);
       cilk_for (int i = 0; i < _PB_NX; i++)
-	for (int j = 1; j < _PB_NY; j++)
+	cilk_for (int j = 1; j < _PB_NY; j++)
 	  ex[i][j] = ex[i][j] - SCALAR_VAL(0.5)*(hz[i][j]-hz[i][j-1]);
       cilk_for (int i = 0; i < _PB_NX - 1; i++)
-	for (int j = 0; j < _PB_NY - 1; j++)
+	cilk_for (int j = 0; j < _PB_NY - 1; j++)
 	  hz[i][j] = hz[i][j] - SCALAR_VAL(0.7)*  (ex[i][j+1] - ex[i][j] +
 				       ey[i+1][j] - ey[i][j]);
     }
@@ -127,6 +126,8 @@ void kernel_fdtd_2d(int tmax,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int tmax = TMAX;
   int nx = NX;
@@ -195,6 +196,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(ey);
   POLYBENCH_FREE_ARRAY(hz);
   POLYBENCH_FREE_ARRAY(_fict_);
+  }
 
   return 0;
 }

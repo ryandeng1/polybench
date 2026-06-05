@@ -104,37 +104,42 @@ void kernel_ludcmp(int n,
 		   DATA_TYPE POLYBENCH_1D(y,N,n))
 {
   int i, j, k;
-
 #pragma scop
   for (int i = 0; i < _PB_N; i++) {
     for (int j = 0; j <i; j++) {
-       DATA_TYPE w = A[i][j];
-       for (int k = 0; k < j; k++) {
-          w -= A[i][k] * A[k][j];
-       }
-       A[i][j] = w / A[j][j];
-    }
-   cilk_for (int j = i; j < _PB_N; j++) {
       DATA_TYPE w = A[i][j];
-      for (int k = 0; k < i; k++) {
-         w -= A[i][k] * A[k][j];
+      for (int k = 0; k < j; k++) {
+        w -= A[i][k] * A[k][j];
       }
-      A[i][j] = w;
+      A[i][j] = w / A[j][j];
+    }
+    cilk_for (int j = i; j < _PB_N; j++) {
+      // DATA_TYPE w = A[i][j];
+      for (int k = 0; k < i; k++) {
+        A[i][j] -= A[i][k] * A[k][j];
+      }
+      // A[i][j] = w;
    }
   }
 
   for (int i = 0; i < _PB_N; i++) {
-     DATA_TYPE w = b[i];
-     for (int j = 0; j < i; j++)
-        w -= A[i][j] * y[j];
-     y[i] = w;
+    //  DATA_TYPE w = b[i];
+    for (int j = 0; j < i; j++) {
+      // w -= A[i][j] * y[j];
+      b[i] -= A[i][j] * y[j];
+    }
+    // y[i] = w;
+    y[i] = b[i];
   }
 
-   for (int i = _PB_N-1; i >=0; i--) {
-     DATA_TYPE w = y[i];
-     for (int j = i+1; j < _PB_N; j++)
-        w -= A[i][j] * x[j];
-     x[i] = w / A[i][i];
+  for (int i = _PB_N-1; i >=0; i--) {
+    // DATA_TYPE w = y[i];
+    for (int j = i+1; j < _PB_N; j++) {
+      // w -= A[i][j] * x[j];
+      y[i] -= A[i][j] * x[j];
+    }
+    // x[i] = w / A[i][i];
+    x[i] = y[i] / A[i][i];
   }
 #pragma endscop
 
@@ -143,6 +148,8 @@ void kernel_ludcmp(int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
 
@@ -207,6 +214,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(b);
   POLYBENCH_FREE_ARRAY(x);
   POLYBENCH_FREE_ARRAY(y);
+  }
 
   return 0;
 }

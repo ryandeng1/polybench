@@ -38,7 +38,9 @@ void init_array(int m, int n,
 
   cilk_for (int i = 0; i < m; i++) {
     cilk_for (int j = 0; j < n; j++) {
-      A[i][j] = (((DATA_TYPE) ((i*j) % m) / m )*100) + 10;
+      // A[i][j] = (((DATA_TYPE) ((i*j) % m) / m )*100) + 10;
+      A[i][j] = (DATA_TYPE)((i == j) ? 2.0 : 0.0)
+          + (DATA_TYPE)(i + 1) * (j + 1) / (DATA_TYPE)(m + n);
       Q[i][j] = 0.0;
     }
   }
@@ -93,24 +95,24 @@ void kernel_gramschmidt(int m, int n,
   int i, j, k;
 
   DATA_TYPE nrm;
-
 #pragma scop
   for (int k = 0; k < _PB_N; k++)
     {
-      nrm = SCALAR_VAL(0.0);
+      DATA_TYPE nrm = SCALAR_VAL(0.0);
       for (int i = 0; i < _PB_M; i++)
         nrm += A[i][k] * A[i][k];
       R[k][k] = SQRT_FUN(nrm);
       cilk_for (int i = 0; i < _PB_M; i++)
         Q[i][k] = A[i][k] / R[k][k];
-      for (int j = k + 1; j < _PB_N; j++)
-	{
-	  R[k][j] = SCALAR_VAL(0.0);
-	  for (int i = 0; i < _PB_M; i++)
-	    R[k][j] += Q[i][k] * A[i][j];
-	  cilk_for (int i = 0; i < _PB_M; i++)
-	    A[i][j] = A[i][j] - Q[i][k] * R[k][j];
-	}
+      cilk_for (int j = k + 1; j < _PB_N; j++) {
+	      R[k][j] = SCALAR_VAL(0.0);
+	      for (int i = 0; i < _PB_M; i++) {
+	        R[k][j] += Q[i][k] * A[i][j];
+        }
+	      cilk_for (int i = 0; i < _PB_M; i++) {
+	        A[i][j] = A[i][j] - Q[i][k] * R[k][j];
+        }
+	    }
     }
 #pragma endscop
 
@@ -119,6 +121,8 @@ void kernel_gramschmidt(int m, int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int m = M;
   int n = N;
@@ -177,6 +181,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(A);
   POLYBENCH_FREE_ARRAY(R);
   POLYBENCH_FREE_ARRAY(Q);
+  }
 
   return 0;
 }

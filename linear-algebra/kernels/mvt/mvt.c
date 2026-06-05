@@ -89,7 +89,6 @@ void kernel_mvt(int n,
 		DATA_TYPE POLYBENCH_2D(A,N,N,n,n))
 {
   int j;
-
 #pragma scop
   cilk_for (int i = 0; i < _PB_N; i++)
     for (int j = 0; j < _PB_N; j++)
@@ -104,6 +103,8 @@ void kernel_mvt(int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
 
@@ -174,6 +175,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(x2);
   POLYBENCH_FREE_ARRAY(y_1);
   POLYBENCH_FREE_ARRAY(y_2);
+  }
 
   return 0;
 }

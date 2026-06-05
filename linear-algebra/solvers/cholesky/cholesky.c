@@ -90,8 +90,6 @@ void kernel_cholesky(int n,
 		     DATA_TYPE POLYBENCH_2D(A,N,N,n,n))
 {
   int i, j, k;
-
-
 #pragma scop
   for (int i = 0; i < _PB_N; i++) {
      //j<i
@@ -114,6 +112,8 @@ void kernel_cholesky(int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
 
@@ -155,6 +155,7 @@ int main(int argc, char** argv)
 
   /* Be clean. */
   POLYBENCH_FREE_ARRAY(A);
+  }
 
   return 0;
 }

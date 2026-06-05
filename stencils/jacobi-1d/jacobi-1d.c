@@ -73,7 +73,6 @@ void kernel_jacobi_1d(int tsteps,
 			    DATA_TYPE POLYBENCH_1D(B,N,n))
 {
   int t, i;
-
 #pragma scop
   for (t = 0; t < _PB_TSTEPS; t++)
     {
@@ -89,6 +88,8 @@ void kernel_jacobi_1d(int tsteps,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
   int tsteps = TSTEPS;
@@ -134,6 +135,7 @@ int main(int argc, char** argv)
   /* Be clean. */
   POLYBENCH_FREE_ARRAY(A);
   POLYBENCH_FREE_ARRAY(B);
+  }
 
   return 0;
 }

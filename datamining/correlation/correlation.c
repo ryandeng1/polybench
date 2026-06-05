@@ -77,8 +77,6 @@ void kernel_correlation(int m, int n,
 			DATA_TYPE POLYBENCH_1D(stddev,M,m))
 {
   DATA_TYPE eps = SCALAR_VAL(0.1);
-
-
 #pragma scop
   cilk_for (int j = 0; j < _PB_M; j++)
     {
@@ -114,7 +112,7 @@ void kernel_correlation(int m, int n,
   cilk_for (int i = 0; i < _PB_M-1; i++)
     {
       corr[i][i] = SCALAR_VAL(1.0);
-      for (int j = i+1; j < _PB_M; j++)
+      cilk_for (int j = i+1; j < _PB_M; j++)
         {
           corr[i][j] = SCALAR_VAL(0.0);
           for (int k = 0; k < _PB_N; k++)
@@ -130,6 +128,8 @@ void kernel_correlation(int m, int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
   int m = M;
@@ -187,6 +187,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(corr);
   POLYBENCH_FREE_ARRAY(mean);
   POLYBENCH_FREE_ARRAY(stddev);
+  }
 
   return 0;
 }

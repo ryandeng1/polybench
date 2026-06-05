@@ -75,7 +75,6 @@ void kernel_trisolv(int n,
 		    DATA_TYPE POLYBENCH_1D(b,N,n))
 {
   int i, j;
-
 #pragma scop
   for (int i = 0; i < _PB_N; i++)
     {
@@ -91,6 +90,8 @@ void kernel_trisolv(int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
 
@@ -137,6 +138,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(L);
   POLYBENCH_FREE_ARRAY(x);
   POLYBENCH_FREE_ARRAY(b);
+  }
 
   return 0;
 }

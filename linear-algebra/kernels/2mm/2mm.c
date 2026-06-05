@@ -89,18 +89,17 @@ void kernel_2mm(int ni, int nj, int nk, int nl,
 		DATA_TYPE POLYBENCH_2D(D,NI,NL,ni,nl))
 {
   int j, k;
-
 #pragma scop
   /* D := alpha*A*B*C + beta*D */
   cilk_for (int i = 0; i < _PB_NI; i++)
-    for (int j = 0; j < _PB_NJ; j++)
+    cilk_for (int j = 0; j < _PB_NJ; j++)
       {
 	tmp[i][j] = SCALAR_VAL(0.0);
 	for (int k = 0; k < _PB_NK; ++k)
 	  tmp[i][j] += alpha * A[i][k] * B[k][j];
       }
   cilk_for (int i = 0; i < _PB_NI; i++)
-    for (int j = 0; j < _PB_NL; j++)
+    cilk_for (int j = 0; j < _PB_NL; j++)
       {
 	D[i][j] *= beta;
 	for (int k = 0; k < _PB_NJ; ++k)
@@ -113,6 +112,8 @@ void kernel_2mm(int ni, int nj, int nk, int nl,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int ni = NI;
   int nj = NJ;
@@ -187,6 +188,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(B);
   POLYBENCH_FREE_ARRAY(C);
   POLYBENCH_FREE_ARRAY(D);
+  }
 
   return 0;
 }

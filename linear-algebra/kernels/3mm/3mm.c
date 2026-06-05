@@ -85,11 +85,10 @@ void kernel_3mm(int ni, int nj, int nk, int nl, int nm,
 		DATA_TYPE POLYBENCH_2D(G,NI,NL,ni,nl))
 {
   int j, k;
-
 #pragma scop
   /* E := A*B */
   cilk_for (int i = 0; i < _PB_NI; i++)
-    for (int j = 0; j < _PB_NJ; j++)
+    cilk_for (int j = 0; j < _PB_NJ; j++)
       {
 	E[i][j] = SCALAR_VAL(0.0);
 	for (int k = 0; k < _PB_NK; ++k)
@@ -97,7 +96,7 @@ void kernel_3mm(int ni, int nj, int nk, int nl, int nm,
       }
   /* F := C*D */
   cilk_for (int i = 0; i < _PB_NJ; i++)
-    for (int j = 0; j < _PB_NL; j++)
+    cilk_for (int j = 0; j < _PB_NL; j++)
       {
 	F[i][j] = SCALAR_VAL(0.0);
 	for (int k = 0; k < _PB_NM; ++k)
@@ -105,7 +104,7 @@ void kernel_3mm(int ni, int nj, int nk, int nl, int nm,
       }
   /* G := E*F */
   cilk_for (int i = 0; i < _PB_NI; i++)
-    for (int j = 0; j < _PB_NL; j++)
+    cilk_for (int j = 0; j < _PB_NL; j++)
       {
 	G[i][j] = SCALAR_VAL(0.0);
 	for (int k = 0; k < _PB_NJ; ++k)
@@ -118,6 +117,8 @@ void kernel_3mm(int ni, int nj, int nk, int nl, int nm,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int ni = NI;
   int nj = NJ;
@@ -197,6 +198,7 @@ int main(int argc, char** argv)
   POLYBENCH_FREE_ARRAY(C);
   POLYBENCH_FREE_ARRAY(D);
   POLYBENCH_FREE_ARRAY(G);
+  }
 
   return 0;
 }

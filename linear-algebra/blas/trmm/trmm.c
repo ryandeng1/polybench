@@ -89,12 +89,25 @@ void kernel_trmm(int m, int n,
 // A is MxM
 // B is MxN
 #pragma scop
-  for (int i = 0; i < _PB_M; i++)
-     cilk_for (int j = 0; j < _PB_N; j++) {
-        for (int k = i+1; k < _PB_M; k++)
-           B[i][j] += A[k][i] * B[k][j];
-        B[i][j] = alpha * B[i][j];
-     }
+  for (int i = 0; i < _PB_M; i++) {
+    /*
+    cilk_for (int j = 0; j < _PB_N; j++) {
+      for (int k = i+1; k < _PB_M; k++) {
+        B[i][j] += A[k][i] * B[k][j];
+      }
+      B[i][j] = alpha * B[i][j];
+    }
+    */
+    for (int k = i + 1; k < _PB_M; k++) {
+      cilk_for (int j = 0; j < _PB_N; j++) {
+        B[i][j] += A[k][i] * B[k][j];
+      }
+    }
+
+    cilk_for (int j = 0; j < _PB_N; j++) {
+      B[i][j] = alpha * B[i][j];
+    }
+  }
 #pragma endscop
 
 }
@@ -102,6 +115,8 @@ void kernel_trmm(int m, int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int m = M;
   int n = N;
@@ -147,6 +162,7 @@ int main(int argc, char** argv)
   /* Be clean. */
   POLYBENCH_FREE_ARRAY(A);
   POLYBENCH_FREE_ARRAY(B);
+  }
 
   return 0;
 }

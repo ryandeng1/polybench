@@ -74,7 +74,6 @@ void kernel_durbin(int n,
  DATA_TYPE sum;
 
  int i,k;
-
 #pragma scop
  y[0] = -r[0];
  beta = SCALAR_VAL(1.0);
@@ -103,6 +102,8 @@ void kernel_durbin(int n,
 
 int main(int argc, char** argv)
 {
+  cilk_scope {
+
   /* Retrieve problem size. */
   int n = N;
 
@@ -151,6 +152,7 @@ int main(int argc, char** argv)
   /* Be clean. */
   POLYBENCH_FREE_ARRAY(r);
   POLYBENCH_FREE_ARRAY(y);
+  }
 
   return 0;
 }
