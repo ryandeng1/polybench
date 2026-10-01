@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -78,6 +81,7 @@ void print_array(int ni, int nl,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
 static
 void kernel_2mm(int ni, int nj, int nk, int nl,
 		DATA_TYPE alpha,
@@ -91,23 +95,62 @@ void kernel_2mm(int ni, int nj, int nk, int nl,
   int j, k;
 #pragma scop
   /* D := alpha*A*B*C + beta*D */
-  cilk_for (int i = 0; i < _PB_NI; i++)
-    cilk_for (int j = 0; j < _PB_NJ; j++)
-      {
-	tmp[i][j] = SCALAR_VAL(0.0);
-	for (int k = 0; k < _PB_NK; ++k)
-	  tmp[i][j] += alpha * A[i][k] * B[k][j];
-      }
-  cilk_for (int i = 0; i < _PB_NI; i++)
-    cilk_for (int j = 0; j < _PB_NL; j++)
-      {
-	D[i][j] *= beta;
-	for (int k = 0; k < _PB_NJ; ++k)
-	  D[i][j] += tmp[i][k] * C[k][j];
-      }
+  cilk::opadd_reducer<DATA_TYPE> reduction_r = SCALAR_VAL(0.0);
+  for (int i = 0; i < _PB_NI; i++) {
+    for (int j = 0; j < _PB_NJ; j++) {
+      reduction_r = SCALAR_VAL(0.0);
+      cilk_for (int k = 0; k < _PB_NK; ++k)
+        reduction_r += alpha * A[i][k] * B[k][j];
+      tmp[i][j] = reduction_r;
+    }
+  }
+
+  for (int i = 0; i < _PB_NI; i++) {
+    for (int j = 0; j < _PB_NL; j++) {
+      reduction_r = beta * D[i][j];
+      cilk_for (int k = 0; k < _PB_NJ; ++k)
+        reduction_r += tmp[i][k] * C[k][j];
+      D[i][j] = reduction_r;
+    }
+  }
 #pragma endscop
 
 }
+#else
+static
+void kernel_2mm(int ni, int nj, int nk, int nl,
+		DATA_TYPE alpha,
+		DATA_TYPE beta,
+		DATA_TYPE POLYBENCH_2D(tmp,NI,NJ,ni,nj),
+		DATA_TYPE POLYBENCH_2D(A,NI,NK,ni,nk),
+		DATA_TYPE POLYBENCH_2D(B,NK,NJ,nk,nj),
+		DATA_TYPE POLYBENCH_2D(C,NJ,NL,nj,nl),
+		DATA_TYPE POLYBENCH_2D(D,NI,NL,ni,nl))
+{
+  int j, k;
+#pragma scop
+  /* D := alpha*A*B*C + beta*D */
+  cilk_for (int i = 0; i < _PB_NI; i++) {
+    cilk_for (int j = 0; j < _PB_NJ; j++) {
+      tmp[i][j] = SCALAR_VAL(0.0);
+      for (int k = 0; k < _PB_NK; ++k) {
+        tmp[i][j] += alpha * A[i][k] * B[k][j];
+      }
+    }
+  }
+
+  cilk_for (int i = 0; i < _PB_NI; i++) {
+    cilk_for (int j = 0; j < _PB_NL; j++) {
+	    D[i][j] *= beta;
+	    for (int k = 0; k < _PB_NJ; ++k) {
+	      D[i][j] += tmp[i][k] * C[k][j];
+      }
+    }
+  }
+#pragma endscop
+
+}
+#endif
 
 
 int main(int argc, char** argv)

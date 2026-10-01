@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -66,6 +69,42 @@ void print_array(int m,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_covariance(int m, int n,
+		       DATA_TYPE float_n,
+		       DATA_TYPE POLYBENCH_2D(data,N,M,n,m),
+		       DATA_TYPE POLYBENCH_2D(cov,M,M,m,m),
+		       DATA_TYPE POLYBENCH_1D(mean,M,m))
+{
+  int i, j, k;
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> reduction_r = SCALAR_VAL(0.0);
+  for (int j = 0; j < _PB_M; j++)
+    {
+      reduction_r = SCALAR_VAL(0.0);
+      cilk_for (int i = 0; i < _PB_N; i++)
+        reduction_r += data[i][j];
+      mean[j] = reduction_r / float_n;
+    }
+
+  cilk_for (int i = 0; i < _PB_N; i++)
+    cilk_for (int j = 0; j < _PB_M; j++)
+      data[i][j] -= mean[j];
+
+  for (int i = 0; i < _PB_M; i++)
+    for (int j = i; j < _PB_M; j++)
+      {
+        reduction_r = SCALAR_VAL(0.0);
+        cilk_for (int k = 0; k < _PB_N; k++)
+          reduction_r += data[k][i] * data[k][j];
+        cov[i][j] = reduction_r / (float_n - SCALAR_VAL(1.0));
+        cov[j][i] = cov[i][j];
+      }
+#pragma endscop
+
+}
+#else
 static
 void kernel_covariance(int m, int n,
 		       DATA_TYPE float_n,
@@ -99,6 +138,7 @@ void kernel_covariance(int m, int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

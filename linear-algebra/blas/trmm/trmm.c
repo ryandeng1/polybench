@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -72,6 +75,37 @@ void print_array(int m, int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_trmm(int m, int n,
+		 DATA_TYPE alpha,
+		 DATA_TYPE POLYBENCH_2D(A,M,M,m,m),
+		 DATA_TYPE POLYBENCH_2D(B,M,N,m,n))
+{
+  int j, k;
+
+//BLAS parameters
+//SIDE   = 'L'
+//UPLO   = 'L'
+//TRANSA = 'T'
+//DIAG   = 'U'
+// => Form  B := alpha*A**T*B.
+// A is MxM
+// B is MxN
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> b_r = SCALAR_VAL(0.0);
+  for (int i = 0; i < _PB_M; i++) {
+    for (int j = 0; j < _PB_N; j++) {
+      b_r = B[i][j];
+      cilk_for (int k = i + 1; k < _PB_M; k++)
+        b_r += A[k][i] * B[k][j];
+      B[i][j] = alpha * b_r;
+    }
+  }
+#pragma endscop
+
+}
+#else
 static
 void kernel_trmm(int m, int n,
 		 DATA_TYPE alpha,
@@ -90,27 +124,17 @@ void kernel_trmm(int m, int n,
 // B is MxN
 #pragma scop
   for (int i = 0; i < _PB_M; i++) {
-    /*
     cilk_for (int j = 0; j < _PB_N; j++) {
       for (int k = i+1; k < _PB_M; k++) {
         B[i][j] += A[k][i] * B[k][j];
       }
       B[i][j] = alpha * B[i][j];
     }
-    */
-    for (int k = i + 1; k < _PB_M; k++) {
-      cilk_for (int j = 0; j < _PB_N; j++) {
-        B[i][j] += A[k][i] * B[k][j];
-      }
-    }
-
-    cilk_for (int j = 0; j < _PB_N; j++) {
-      B[i][j] = alpha * B[i][j];
-    }
   }
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

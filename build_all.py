@@ -8,6 +8,7 @@ import argparse
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 # Configuration
@@ -25,9 +26,16 @@ TARGET_DIRS = [
 
 # Compilation settings
 DEFAULT_DATASET_SIZE = "EXTRALARGE_DATASET"
-CC = os.path.expanduser("~/opencilk_build/bin/clang++")
-CFLAGS = ["-O3", "-fopencilk", "-g"]
+CC = os.path.expanduser("~/opencilk_build/build/bin/clang++")
+# CFLAGS = ["-O3", "-fopencilk", "-march=native"]
+# CFLAGS = ["-O3", "-fopencilk", "-ftapir=serial", "-g"]
+CFLAGS = ["-O3", "-fopencilk", "-g", "-fno-exceptions", "-mllvm", "-enable-unroll-and-jam", "-march=native", "-ftapir=serial"]
+# CFLAGS = ["-O3", "-fopencilk", "-g", "-fno-exceptions", "-march=native"]
+# CFLAGS = ["-O3", "-fopencilk", "-mllvm", "-enable-loop-versioning-licm", "-mllvm", "-licm-versioning-max-depth-threshold=3"]
+# DEFINES = ["-DBENCHMARK", "-DPOLYBENCH_NO_FLUSH_CACHE", "-DPOLYBENCH_USE_RESTRICT"]
 DEFINES = ["-DBENCHMARK", "-DPOLYBENCH_NO_FLUSH_CACHE"]
+# DEFINES = ["-DBENCHMARK", "-DPOLYBENCH_NO_FLUSH_CACHE"]
+# DEFINES = ["-DPOLYBENCH_TIME"]
 LDFLAGS = ["-lm"]  # Math library for functions like sqrt
 
 # Output directory for compiled binaries
@@ -54,6 +62,38 @@ def find_benchmarks():
     return sorted(benchmarks)
 
 
+def parse_requested_benchmarks(requested_args):
+    if not requested_args:
+        return None
+
+    requested = []
+    for requested_arg in requested_args:
+        for benchmark_name in requested_arg.split(","):
+            benchmark_name = benchmark_name.strip()
+            if benchmark_name:
+                requested.append(benchmark_name)
+
+    return requested
+
+
+def filter_benchmarks(benchmarks, requested):
+    if requested is None:
+        return benchmarks
+
+    matched = [
+        benchmark for benchmark in benchmarks
+        if any(name in benchmark.stem for name in requested)
+    ]
+    missing = [
+        name for name in requested
+        if not any(name in benchmark.stem for benchmark in benchmarks)
+    ]
+    if missing:
+        raise ValueError(f"No benchmark matching: {', '.join(missing)}")
+
+    return matched
+
+
 def compile_benchmark(benchmark_path, dataset_size: str, use_drfaa: bool):
     """
     Compile a single benchmark.
@@ -72,7 +112,11 @@ def compile_benchmark(benchmark_path, dataset_size: str, use_drfaa: bool):
     output_name = f"{benchmark_name}_time"
     output_path = OUTPUT_DIR / output_name
 
-    drfaa_flag = ["-mllvm", "-enable-drf-aa"] if use_drfaa else []
+    # drfaa_flag = ["-mllvm", "-enable-drf-aa"] if use_drfaa else []
+    # drfaa_flag = ["-mllvm", "-enable-drf-aa", "-mllvm", "-enable-drf-aa-delta-set-proof", "-mllvm", "-enable-drf-laa-check-elision"] if use_drfaa else []
+    # drfaa_flag = ["-mllvm", "-enable-drf-aa", "-mllvm", "-enable-drf-aa-presburger-delta-set-proof", "-mllvm", "-enable-drf-aa-delta-set-proof", "-mllvm", "-enable-drf-laa-check-elision", "-mllvm", "-enable-drf-aa-hyper-view"] if use_drfaa else []
+    # drfaa_flag = ["-mllvm", "-enable-drf-aa", "-mllvm", "-enable-drf-aa-presburger-delta-set-proof", "-mllvm", "-enable-drf-aa-delta-set-proof", "-mllvm", "-enable-drf-laa", "-mllvm", "-enable-drf-laa-check-elision", "-mllvm", "-enable-drf-aa-hyper-view", "-mllvm", "-enable-drf-loop-optimizations", "-fhyperobject-associative-math", "-mllvm", "-drf-aa-presburger-delta-set-max-loop-vars=1"] if use_drfaa else []
+    drfaa_flag = ["-mllvm", "-enable-drf-aa", "-mllvm", "-enable-drf-aa-presburger-delta-set-proof", "-mllvm", "-enable-drf-aa-delta-set-proof", "-mllvm", "-enable-drf-laa", "-mllvm", "-enable-drf-laa-check-elision", "-mllvm", "-enable-drf-aa-hyper-view", "-mllvm", "-drf-aa-presburger-delta-set-max-loop-vars=1", "-mllvm", "-enable-drf-memoryssa", "-mllvm", "-enable-drf-loop-optimizations"] if use_drfaa else []
 
     # Build compile command
     cmd = [
@@ -94,7 +138,7 @@ def compile_benchmark(benchmark_path, dataset_size: str, use_drfaa: bool):
             cmd,
             capture_output=True,
             text=True,
-            check=True
+            # check=True
         )
         if result.returncode != 0:
             assert False, f"error compiling: {result.stdout}\n{result.stderr}"
@@ -102,6 +146,56 @@ def compile_benchmark(benchmark_path, dataset_size: str, use_drfaa: bool):
     except Exception as e:
         print(f"exception: {e}")
         raise e
+
+
+def compile_benchmarks_parallel(
+    benchmarks, dataset_size: str, use_drfaa: bool, jobs: int
+):
+    """Compile independent benchmarks concurrently using worker threads."""
+    results = {
+        "success": [],
+        "failed": []
+    }
+    total = len(benchmarks)
+
+    print(f"Using {jobs} parallel compiler jobs")
+
+    with ThreadPoolExecutor(
+        max_workers=jobs,
+        thread_name_prefix="polybench-compile",
+    ) as executor:
+        futures = {}
+        for i, benchmark in enumerate(benchmarks, 1):
+            future = executor.submit(
+                compile_benchmark,
+                benchmark,
+                dataset_size,
+                use_drfaa,
+            )
+            futures[future] = (i, benchmark)
+
+        for future in as_completed(futures):
+            i, benchmark = futures[future]
+            rel_path = benchmark.relative_to(ROOT_DIR)
+            try:
+                output_path = future.result()
+            except Exception as error:
+                print(
+                    f"[{i}/{total}] Compiling {rel_path}... ✗",
+                    flush=True,
+                )
+                results["failed"].append((rel_path, str(error)))
+            else:
+                print(
+                    f"[{i}/{total}] Compiling {rel_path}... ✓",
+                    flush=True,
+                )
+                results["success"].append((rel_path, output_path))
+
+    results["success"].sort(key=lambda result: result[0])
+    results["failed"].sort(key=lambda result: result[0])
+    return results
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -119,7 +213,27 @@ def main():
         action="store_true",
         help=f"whether or not to use drfaa"
     )
+    parser.add_argument(
+        "-b", "--benchmark",
+        action="append",
+        help=(
+            "Compile only matching benchmark name(s); can be repeated and can "
+            "include comma-separated names, e.g. -b doitgen or -b atax,bicg"
+        )
+    )
+    parser.add_argument(
+        "-j", "--jobs",
+        type=int,
+        default=1,
+        metavar="N",
+        help=(
+            "Number of benchmarks to compile concurrently; 1 uses the "
+            "original single-threaded build path (default: 1)"
+        ),
+    )
     args = parser.parse_args()
+    if args.jobs < 1:
+        parser.error("--jobs must be at least 1")
 
     """Main build function."""
     print("=" * 70)
@@ -135,6 +249,12 @@ def main():
     # Find all benchmarks
     print("Scanning for benchmarks...")
     benchmarks = find_benchmarks()
+    requested_benchmarks = parse_requested_benchmarks(args.benchmark)
+    try:
+        benchmarks = filter_benchmarks(benchmarks, requested_benchmarks)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
     print(f"Found {len(benchmarks)} benchmarks")
     print()
 
@@ -142,21 +262,29 @@ def main():
     print("Starting compilation...")
     print("-" * 70)
 
-    results = {
-        "success": [],
-        "failed": []
-    }
+    if args.jobs == 1:
+        results = {
+            "success": [],
+            "failed": []
+        }
 
-    for i, benchmark in enumerate(benchmarks, 1):
-        # Get relative path for display
-        rel_path = benchmark.relative_to(ROOT_DIR)
+        for i, benchmark in enumerate(benchmarks, 1):
+            # Get relative path for display
+            rel_path = benchmark.relative_to(ROOT_DIR)
 
-        print(f"[{i}/{len(benchmarks)}] Compiling {rel_path}...", end=" ", flush=True)
+            print(f"[{i}/{len(benchmarks)}] Compiling {rel_path}...", end=" ", flush=True)
 
-        output_path = compile_benchmark(benchmark, args.dataset, args.drfaa)
+            output_path = compile_benchmark(benchmark, args.dataset, args.drfaa)
 
-        print("✓")
-        results["success"].append((rel_path, output_path))
+            print("✓")
+            results["success"].append((rel_path, output_path))
+    else:
+        results = compile_benchmarks_parallel(
+            benchmarks,
+            args.dataset,
+            args.drfaa,
+            args.jobs,
+        )
 
     # Print summary
     print("-" * 70)

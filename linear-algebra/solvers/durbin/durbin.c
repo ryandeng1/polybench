@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -63,6 +66,44 @@ void print_array(int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_durbin(int n,
+		   DATA_TYPE POLYBENCH_1D(r,N,n),
+		   DATA_TYPE POLYBENCH_1D(y,N,n))
+{
+ DATA_TYPE z[N];
+ DATA_TYPE alpha;
+ DATA_TYPE beta;
+ DATA_TYPE sum;
+
+ int i,k;
+#pragma scop
+ cilk::opadd_reducer<DATA_TYPE> sum_r = SCALAR_VAL(0.0);
+ y[0] = -r[0];
+ beta = SCALAR_VAL(1.0);
+ alpha = -r[0];
+
+ for (int k = 1; k < _PB_N; k++) {
+   beta = (1-alpha*alpha)*beta;
+   sum_r = SCALAR_VAL(0.0);
+   cilk_for (int i=0; i<k; i++)
+      sum_r += r[k-i-1]*y[i];
+   sum = sum_r;
+   alpha = - (r[k] + sum)/beta;
+
+   cilk_for (int i=0; i<k; i++) {
+      z[i] = y[i] + alpha*y[k-i-1];
+   }
+   cilk_for (int i=0; i<k; i++) {
+     y[i] = z[i];
+   }
+   y[k] = alpha;
+ }
+#pragma endscop
+
+}
+#else
 static
 void kernel_durbin(int n,
 		   DATA_TYPE POLYBENCH_1D(r,N,n),
@@ -98,6 +139,7 @@ void kernel_durbin(int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -73,6 +76,36 @@ void print_array(int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_gesummv(int n,
+		    DATA_TYPE alpha,
+		    DATA_TYPE beta,
+		    DATA_TYPE POLYBENCH_2D(A,N,N,n,n),
+		    DATA_TYPE POLYBENCH_2D(B,N,N,n,n),
+		    DATA_TYPE POLYBENCH_1D(tmp,N,n),
+		    DATA_TYPE POLYBENCH_1D(x,N,n),
+		    DATA_TYPE POLYBENCH_1D(y,N,n))
+{
+  int i, j;
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> tmp_r = SCALAR_VAL(0.0);
+  cilk::opadd_reducer<DATA_TYPE> y_r = SCALAR_VAL(0.0);
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    tmp_r = SCALAR_VAL(0.0);
+    y_r = SCALAR_VAL(0.0);
+    cilk_for (int j = 0; j < _PB_N; j++) {
+      tmp_r += A[i][j] * x[j];
+      y_r += B[i][j] * x[j];
+    }
+    tmp[i] = tmp_r;
+    y[i] = alpha * tmp[i] + beta * y_r;
+  }
+
+#pragma endscop
+
+}
+#else
 static
 void kernel_gesummv(int n,
 		    DATA_TYPE alpha,
@@ -97,6 +130,7 @@ void kernel_gesummv(int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

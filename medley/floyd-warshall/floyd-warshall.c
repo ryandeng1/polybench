@@ -75,12 +75,8 @@ void kernel_floyd_warshall(int n,
 #pragma scop
   for (k = 0; k < _PB_N; k++)
     {
-      // Cache row k to avoid race condition in parallel execution.
-      // Without this, iteration i=k writes to path[k][j] while other
+      // Iteration i=k writes to path[k][j] while other
       // iterations concurrently read path[k][j].
-      // DATA_TYPE path_k_row[_PB_N];
-      // for (int j = 0; j < _PB_N; j++)
-      //   path_k_row[j] = path[k][j];
 
       cilk_for(int i = 0; i < _PB_N; i++) {
 	      cilk_for (int j = 0; j < _PB_N; j++) {

@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -86,6 +89,59 @@ void print_array(int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_gemver(int n,
+		   DATA_TYPE alpha,
+		   DATA_TYPE beta,
+		   DATA_TYPE POLYBENCH_2D(A,N,N,n,n),
+		   DATA_TYPE POLYBENCH_1D(u1,N,n),
+		   DATA_TYPE POLYBENCH_1D(v1,N,n),
+		   DATA_TYPE POLYBENCH_1D(u2,N,n),
+		   DATA_TYPE POLYBENCH_1D(v2,N,n),
+		   DATA_TYPE POLYBENCH_1D(w,N,n),
+		   DATA_TYPE POLYBENCH_1D(x,N,n),
+		   DATA_TYPE POLYBENCH_1D(y,N,n),
+		   DATA_TYPE POLYBENCH_1D(z,N,n))
+{
+#pragma scop
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    cilk_for (int j = 0; j < _PB_N; j++) {
+      A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
+    }
+  }
+
+  /* Keep the base zero-dot-product-z operation order.  Each parallel i
+     iteration owns a fresh reducer for its inner j reduction. */
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    cilk::opadd_reducer<DATA_TYPE> sum_r = SCALAR_VAL(0.0);
+    cilk_for (int j = 0; j < _PB_N; j++)
+      sum_r += beta * A[j][i] * y[j];
+    x[i] = sum_r;
+    x[i] = x[i] + z[i];
+  }
+
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    cilk::opadd_reducer<DATA_TYPE> sum_r = SCALAR_VAL(0.0);
+    cilk_for (int j = 0; j < _PB_N; j++)
+      sum_r += alpha * A[i][j] * x[j];
+    w[i] = sum_r;
+  }
+
+  /*
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    for (int j = 0; j < _PB_N; j++) {
+      x[i] = x[i] + beta * A[j][i] * y[j];
+    }
+  }
+
+  cilk_for (int i = 0; i < _PB_N; i++) {
+    x[i] = x[i] + z[i];
+  }
+  */
+#pragma endscop
+}
+#else
 static
 void kernel_gemver(int n,
 		   DATA_TYPE alpha,
@@ -107,7 +163,7 @@ void kernel_gemver(int n,
       A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
     }
   }
-  
+
   cilk_for (int i = 0; i < _PB_N; i++) {
     x[i] = SCALAR_VAL(0);
     for (int j = 0; j < _PB_N; j++) {
@@ -136,6 +192,7 @@ void kernel_gemver(int n,
   */
 #pragma endscop
 }
+#endif
 
 
 int main(int argc, char** argv)

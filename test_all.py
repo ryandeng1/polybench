@@ -25,19 +25,21 @@ TARGET_DIRS = [
 ]
 
 # Compiler settings
-CC = os.path.expanduser("~/opencilk_build/bin/clang++")  # Optimized compiler
+CC = os.path.expanduser("~/opencilk_build/build/bin/clang++")  # Optimized compiler
 
 # Reference compilation flags (no optimizations for correctness)
-CFLAGS_REF = ["-O0"]
+CFLAGS_REF = ["-O3", "-fopencilk", "-fno-exceptions"]
 # Optimized compilation flags
-CFLAGS_OPT = ["-O3", "-fopencilk"]
+# CFLAGS_OPT = ["-O3", "-fopencilk", "-mllvm", "-enable-drf-aa", "-mllvm", "-enable-drf-aa-delta-set-proof", "-mllvm", "-enable-drf-equality-versioning"]
+CFLAGS_OPT = ["-O3", "-fopencilk", "-fno-exceptions", "-mllvm", "-enable-drf-aa", "-mllvm", "-enable-drf-laa", "-mllvm", "-enable-drf-laa-check-elision", "-mllvm", "-enable-drf-aa-delta-set-proof", "-mllvm", "-enable-drf-aa-presburger-delta-set-proof"]
+# CFLAGS_OPT = ["-O3", "-fopencilk", "-ftapir=serial"]
 
 # Common flags
-DEFINES = ["-DPOLYBENCH_DUMP_ARRAYS"]
+DEFINES = ["-DPOLYBENCH_DUMP_ARRAYS", "-DUSE_REDUCER"]
 LDFLAGS = ["-lm"]
 
 # Default dataset size (use MINI for faster testing)
-DEFAULT_DATASET = "EXTRALARGE_DATASET"
+DEFAULT_DATASET = "LARGE_DATASET"
 
 
 def find_benchmarks():
@@ -95,7 +97,7 @@ def compile_benchmark(benchmark_path, output_path, cc, cflags, dataset):
     except Exception as e:
         raise e
 
-def run_benchmark(binary_path, timeout=60):
+def run_benchmark(binary_path, timeout=500):
     """
     Run a benchmark and capture its output.
 

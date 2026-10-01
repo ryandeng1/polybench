@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -80,6 +83,34 @@ void print_array(int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_mvt(int n,
+		DATA_TYPE POLYBENCH_1D(x1,N,n),
+		DATA_TYPE POLYBENCH_1D(x2,N,n),
+		DATA_TYPE POLYBENCH_1D(y_1,N,n),
+		DATA_TYPE POLYBENCH_1D(y_2,N,n),
+		DATA_TYPE POLYBENCH_2D(A,N,N,n,n))
+{
+  int j;
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> reduction_r = SCALAR_VAL(0.0);
+  for (int i = 0; i < _PB_N; i++) {
+    reduction_r = x1[i];
+    cilk_for (int j = 0; j < _PB_N; j++)
+      reduction_r += A[i][j] * y_1[j];
+    x1[i] = reduction_r;
+  }
+  for (int i = 0; i < _PB_N; i++) {
+    reduction_r = x2[i];
+    cilk_for (int j = 0; j < _PB_N; j++)
+      reduction_r += A[j][i] * y_2[j];
+    x2[i] = reduction_r;
+  }
+#pragma endscop
+
+}
+#else
 static
 void kernel_mvt(int n,
 		DATA_TYPE POLYBENCH_1D(x1,N,n),
@@ -99,6 +130,7 @@ void kernel_mvt(int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

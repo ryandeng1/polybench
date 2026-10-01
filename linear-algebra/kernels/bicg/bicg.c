@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -75,6 +78,53 @@ void print_array(int m, int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_bicg(int m, int n,
+		 DATA_TYPE POLYBENCH_2D(A,N,M,n,m),
+		 DATA_TYPE POLYBENCH_1D(s,M,m),
+		 DATA_TYPE POLYBENCH_1D(q,N,n),
+		 DATA_TYPE POLYBENCH_1D(p,M,m),
+		 DATA_TYPE POLYBENCH_1D(r,N,n))
+{
+  int j;
+#pragma scop
+  /* Fissioned form: the original fuses two reductions into one serial i-loop
+     because s[j] carries a cross-i dependence. Splitting them exposes each
+     half on its natural parallel axis.
+       q = A * p   -> parallel over rows i    (row-indexed: sound DRFAA target)
+       s = A^T * r -> parallel over columns j (col-indexed: genuine DRFAA wall) */
+  cilk::opadd_reducer<DATA_TYPE> reduction_r = SCALAR_VAL(0.0);
+  for (int i = 0; i < _PB_N; i++) {
+    reduction_r = SCALAR_VAL(0.0);
+    cilk_for (int j = 0; j < _PB_M; j++)
+      reduction_r += A[i][j] * p[j];
+    q[i] = reduction_r;
+  }
+  for (int j = 0; j < _PB_M; j++) {
+    reduction_r = SCALAR_VAL(0.0);
+    cilk_for (int i = 0; i < _PB_N; i++)
+      reduction_r += r[i] * A[i][j];
+    s[j] = reduction_r;
+  }
+  /*
+  cilk_for (int i = 0; i < _PB_M; i++)
+    s[i] = 0;
+  for (int i = 0; i < _PB_N; i++)
+    {
+      q[i] = SCALAR_VAL(0.0);
+      for (int j = 0; j < _PB_M; j++)
+	{
+	  s[j] = s[j] + r[i] * A[i][j];
+	  q[i] = q[i] + A[i][j] * p[j];
+	}
+    }
+#endif
+  */
+#pragma endscop
+
+}
+#else
 static
 void kernel_bicg(int m, int n,
 		 DATA_TYPE POLYBENCH_2D(A,N,M,n,m),
@@ -119,6 +169,7 @@ void kernel_bicg(int m, int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -68,6 +71,68 @@ void print_array(int m,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_correlation(int m, int n,
+			DATA_TYPE float_n,
+			DATA_TYPE POLYBENCH_2D(data,N,M,n,m),
+			DATA_TYPE POLYBENCH_2D(corr,M,M,m,m),
+			DATA_TYPE POLYBENCH_1D(mean,M,m),
+			DATA_TYPE POLYBENCH_1D(stddev,M,m))
+{
+  DATA_TYPE eps = SCALAR_VAL(0.1);
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> reduction_r = SCALAR_VAL(0.0);
+  for (int j = 0; j < _PB_M; j++)
+    {
+      reduction_r = SCALAR_VAL(0.0);
+      cilk_for (int i = 0; i < _PB_N; i++)
+        reduction_r += data[i][j];
+      mean[j] = reduction_r / float_n;
+    }
+
+
+  for (int j = 0; j < _PB_M; j++)
+    {
+      reduction_r = SCALAR_VAL(0.0);
+      cilk_for (int i = 0; i < _PB_N; i++) {
+        DATA_TYPE centered = data[i][j] - mean[j];
+        reduction_r += centered * centered;
+      }
+      stddev[j] = reduction_r / float_n;
+      stddev[j] = SQRT_FUN(stddev[j]);
+      /* The following in an inelegant but usual way to handle
+         near-zero std. dev. values, which below would cause a zero-
+         divide. */
+      stddev[j] = stddev[j] <= eps ? SCALAR_VAL(1.0) : stddev[j];
+    }
+
+  /* Center and reduce the column vectors. */
+  cilk_for (int i = 0; i < _PB_N; i++)
+    cilk_for (int j = 0; j < _PB_M; j++)
+      {
+        data[i][j] -= mean[j];
+        data[i][j] /= SQRT_FUN(float_n) * stddev[j];
+      }
+
+  /* Calculate the m * m correlation matrix. */
+  for (int i = 0; i < _PB_M-1; i++)
+    {
+      corr[i][i] = SCALAR_VAL(1.0);
+      for (int j = i+1; j < _PB_M; j++)
+        {
+          reduction_r = SCALAR_VAL(0.0);
+          cilk_for (int k = 0; k < _PB_N; k++)
+            reduction_r += data[k][i] * data[k][j];
+          corr[i][j] = reduction_r;
+          corr[j][i] = corr[i][j];
+        }
+    }
+  corr[_PB_M-1][_PB_M-1] = SCALAR_VAL(1.0);
+#pragma endscop
+
+}
+#else
 static
 void kernel_correlation(int m, int n,
 			DATA_TYPE float_n,
@@ -124,6 +189,7 @@ void kernel_correlation(int m, int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

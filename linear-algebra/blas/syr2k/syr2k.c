@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -74,6 +77,38 @@ void print_array(int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_syr2k(int n, int m,
+		  DATA_TYPE alpha,
+		  DATA_TYPE beta,
+		  DATA_TYPE POLYBENCH_2D(C,N,N,n,n),
+		  DATA_TYPE POLYBENCH_2D(A,N,M,n,m),
+		  DATA_TYPE POLYBENCH_2D(B,N,M,n,m))
+{
+  int j, k;
+
+//BLAS PARAMS
+//UPLO  = 'L'
+//TRANS = 'N'
+//A is NxM
+//B is NxM
+//C is NxN
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> c_r = SCALAR_VAL(0.0);
+  for (int i = 0; i < _PB_N; i++) {
+    for (int j = 0; j <= i; j++) {
+      c_r = beta * C[i][j];
+      cilk_for (int k = 0; k < _PB_M; k++)
+        c_r += alpha *
+               (A[j][k] * B[i][k] + B[j][k] * A[i][k]);
+      C[i][j] = c_r;
+    }
+  }
+#pragma endscop
+
+}
+#else
 static
 void kernel_syr2k(int n, int m,
 		  DATA_TYPE alpha,
@@ -104,6 +139,7 @@ void kernel_syr2k(int n, int m,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

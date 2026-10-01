@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -74,6 +77,48 @@ void print_array(int ni, int nl,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_3mm(int ni, int nj, int nk, int nl, int nm,
+		DATA_TYPE POLYBENCH_2D(E,NI,NJ,ni,nj),
+		DATA_TYPE POLYBENCH_2D(A,NI,NK,ni,nk),
+		DATA_TYPE POLYBENCH_2D(B,NK,NJ,nk,nj),
+		DATA_TYPE POLYBENCH_2D(F,NJ,NL,nj,nl),
+		DATA_TYPE POLYBENCH_2D(C,NJ,NM,nj,nm),
+		DATA_TYPE POLYBENCH_2D(D,NM,NL,nm,nl),
+		DATA_TYPE POLYBENCH_2D(G,NI,NL,ni,nl))
+{
+  int j, k;
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> reduction_r = SCALAR_VAL(0.0);
+  /* E := A*B */
+  for (int i = 0; i < _PB_NI; i++)
+    for (int j = 0; j < _PB_NJ; j++) {
+      reduction_r = SCALAR_VAL(0.0);
+      cilk_for (int k = 0; k < _PB_NK; ++k)
+        reduction_r += A[i][k] * B[k][j];
+      E[i][j] = reduction_r;
+    }
+  /* F := C*D */
+  for (int i = 0; i < _PB_NJ; i++)
+    for (int j = 0; j < _PB_NL; j++) {
+      reduction_r = SCALAR_VAL(0.0);
+      cilk_for (int k = 0; k < _PB_NM; ++k)
+        reduction_r += C[i][k] * D[k][j];
+      F[i][j] = reduction_r;
+    }
+  /* G := E*F */
+  for (int i = 0; i < _PB_NI; i++)
+    for (int j = 0; j < _PB_NL; j++) {
+      reduction_r = SCALAR_VAL(0.0);
+      cilk_for (int k = 0; k < _PB_NJ; ++k)
+        reduction_r += E[i][k] * F[k][j];
+      G[i][j] = reduction_r;
+    }
+#pragma endscop
+
+}
+#else
 static
 void kernel_3mm(int ni, int nj, int nk, int nl, int nm,
 		DATA_TYPE POLYBENCH_2D(E,NI,NJ,ni,nj),
@@ -113,6 +158,7 @@ void kernel_3mm(int ni, int nj, int nk, int nl, int nm,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -67,6 +70,7 @@ void print_array(int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
 static
 void kernel_atax(int m, int n,
 		 DATA_TYPE POLYBENCH_2D(A,M,N,m,n),
@@ -88,7 +92,47 @@ void kernel_atax(int m, int n,
 	y[j] = y[j] + A[i][j] * tmp[i];
     }
   */
-  
+
+  cilk::opadd_reducer<DATA_TYPE> reduction_r = SCALAR_VAL(0.0);
+  for (int i = 0; i < _PB_M; i++) {
+    reduction_r = SCALAR_VAL(0.0);
+    cilk_for (int j = 0; j < _PB_N; j++)
+      reduction_r += A[i][j] * x[j];
+    tmp[i] = reduction_r;
+  }
+
+  for (int j = 0; j < _PB_N; j++) {
+    reduction_r = SCALAR_VAL(0.0);
+    cilk_for (int i = 0; i < _PB_M; i++)
+      reduction_r += A[i][j] * tmp[i];
+    y[j] = reduction_r;
+  }
+#pragma endscop
+
+}
+#else
+static
+void kernel_atax(int m, int n,
+		 DATA_TYPE POLYBENCH_2D(A,M,N,m,n),
+		 DATA_TYPE POLYBENCH_1D(x,N,n),
+		 DATA_TYPE POLYBENCH_1D(y,N,n),
+		 DATA_TYPE POLYBENCH_1D(tmp,M,m))
+{
+  int j;
+#pragma scop
+  /*
+  cilk_for (int i = 0; i < _PB_N; i++)
+    y[i] = 0;
+  for (int i = 0; i < _PB_M; i++)
+    {
+      tmp[i] = SCALAR_VAL(0.0);
+      for (int j = 0; j < _PB_N; j++)
+	tmp[i] = tmp[i] + A[i][j] * x[j];
+      for (int j = 0; j < _PB_N; j++)
+	y[j] = y[j] + A[i][j] * tmp[i];
+    }
+  */
+
   cilk_for (int i = 0; i < _PB_M; i++) {
     tmp[i] = SCALAR_VAL(0.0);
     for (int j = 0; j < _PB_N; j++) {
@@ -105,6 +149,7 @@ void kernel_atax(int m, int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

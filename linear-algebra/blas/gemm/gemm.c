@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -74,6 +77,38 @@ void print_array(int ni, int nj,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_gemm(int ni, int nj, int nk,
+		 DATA_TYPE alpha,
+		 DATA_TYPE beta,
+		 DATA_TYPE POLYBENCH_2D(C,NI,NJ,ni,nj),
+		 DATA_TYPE POLYBENCH_2D(A,NI,NK,ni,nk),
+		 DATA_TYPE POLYBENCH_2D(B,NK,NJ,nk,nj))
+{
+  int i, j, k;
+
+//BLAS PARAMS
+//TRANSA = 'N'
+//TRANSB = 'N'
+// => Form C := alpha*A*B + beta*C,
+//A is NIxNK
+//B is NKxNJ
+//C is NIxNJ
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> c_r = SCALAR_VAL(0.0);
+  for (int i = 0; i < _PB_NI; i++) {
+    for (int j = 0; j < _PB_NJ; j++) {
+      c_r = beta * C[i][j];
+      cilk_for (int k = 0; k < _PB_NK; k++)
+        c_r += alpha * A[i][k] * B[k][j];
+      C[i][j] = c_r;
+    }
+  }
+#pragma endscop
+
+}
+#else
 static
 void kernel_gemm(int ni, int nj, int nk,
 		 DATA_TYPE alpha,
@@ -116,6 +151,7 @@ void kernel_gemm(int ni, int nj, int nk,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

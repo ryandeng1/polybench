@@ -14,7 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
 #include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -69,25 +71,23 @@ void print_array(int nr, int nq, int np,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
 void kernel_doitgen(int nr, int nq, int np,
 		    DATA_TYPE POLYBENCH_3D(A,NR,NQ,NP,nr,nq,np),
 		    DATA_TYPE POLYBENCH_2D(C4,NP,NP,np,np),
 		    DATA_TYPE POLYBENCH_1D(sum,NP,np))
 {
   int q, p, s;
-  // cilk::opadd_reducer<double> sum_r = 0;
 
 #pragma scop
+  cilk::opadd_reducer<DATA_TYPE> sum_r = SCALAR_VAL(0.0);
   for (int r = 0; r < _PB_NR; r++) {
     for (int q = 0; q < _PB_NQ; q++)  {
-      cilk_for (int p = 0; p < _PB_NP; p++)  {
-	      sum[p] = SCALAR_VAL(0.0);
-        // auto sum_r = SCALAR_VAL(0.0);
-	      for (int s = 0; s < _PB_NP; s++) {
-	        sum[p] += A[r][q][s] * C4[s][p];
-          // sum_r += A[r][q][s] * C4[s][p];
-        }
-        // sum[p] = sum_r;
+      for (int p = 0; p < _PB_NP; p++)  {
+        sum_r = SCALAR_VAL(0.0);
+        cilk_for (int s = 0; s < _PB_NP; s++)
+          sum_r += A[r][q][s] * C4[s][p];
+        sum[p] = sum_r;
       }
       cilk_for (int p = 0; p < _PB_NP; p++) {
 	      A[r][q][p] = sum[p];
@@ -97,6 +97,32 @@ void kernel_doitgen(int nr, int nq, int np,
 #pragma endscop
 
 }
+#else
+void kernel_doitgen(int nr, int nq, int np,
+		    DATA_TYPE POLYBENCH_3D(A,NR,NQ,NP,nr,nq,np),
+		    DATA_TYPE POLYBENCH_2D(C4,NP,NP,np,np),
+		    DATA_TYPE POLYBENCH_1D(sum,NP,np))
+{
+  int q, p, s;
+
+#pragma scop
+  for (int r = 0; r < _PB_NR; r++) {
+    for (int q = 0; q < _PB_NQ; q++)  {
+      cilk_for (int p = 0; p < _PB_NP; p++)  {
+	      sum[p] = SCALAR_VAL(0.0);
+	      for (int s = 0; s < _PB_NP; s++) {
+	        sum[p] += A[r][q][s] * C4[s][p];
+        }
+      }
+      cilk_for (int p = 0; p < _PB_NP; p++) {
+	      A[r][q][p] = sum[p];
+      }
+    }
+  }
+#pragma endscop
+
+}
+#endif
 
 
 int main(int argc, char** argv)

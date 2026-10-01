@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -76,6 +79,40 @@ void print_array(int m, int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_symm(int m, int n,
+		 DATA_TYPE alpha,
+		 DATA_TYPE beta,
+		 DATA_TYPE POLYBENCH_2D(C,M,N,m,n),
+		 DATA_TYPE POLYBENCH_2D(A,M,M,m,m),
+		 DATA_TYPE POLYBENCH_2D(B,M,N,m,n))
+{
+//BLAS PARAMS
+//SIDE = 'L'
+//UPLO = 'L'
+// =>  Form  C := alpha*A*B + beta*C
+// A is MxM
+// B is MxN
+// C is MxN
+//note that due to Fortran array layout, the code below more closely resembles upper triangular case in BLAS
+#pragma scop
+  /* Match the base i-j-k traversal exactly.  Only temp2 is a reduction;
+     every C[k][j] update is owned by one k iteration. */
+  for (int i = 0; i < _PB_M; i++)
+    cilk_for (int j = 0; j < _PB_N; j++) {
+      cilk::opadd_reducer<DATA_TYPE> temp2_r = SCALAR_VAL(0.0);
+      cilk_for (int k = 0; k < i; k++) {
+        C[k][j] += alpha * B[i][j] * A[i][k];
+        temp2_r += B[k][j] * A[i][k];
+      }
+      C[i][j] = beta * C[i][j] + alpha * B[i][j] * A[i][i] +
+                alpha * temp2_r;
+    }
+#pragma endscop
+
+}
+#else
 static
 void kernel_symm(int m, int n,
 		 DATA_TYPE alpha,
@@ -109,6 +146,7 @@ void kernel_symm(int m, int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

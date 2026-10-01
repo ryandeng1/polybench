@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -85,6 +88,34 @@ void print_array(int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_cholesky(int n,
+		     DATA_TYPE POLYBENCH_2D(A,N,N,n,n))
+{
+  int i, j, k;
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> reduction_r = SCALAR_VAL(0.0);
+  for (int i = 0; i < _PB_N; i++) {
+     //j<i
+     for (int j = 0; j < i; j++) {
+        reduction_r = A[i][j];
+        cilk_for (int k = 0; k < j; k++)
+           reduction_r += -A[i][k] * A[j][k];
+        A[i][j] = reduction_r;
+        A[i][j] /= A[j][j];
+     }
+     // i==j case
+     reduction_r = A[i][i];
+     cilk_for (int k = 0; k < i; k++)
+        reduction_r += -A[i][k] * A[i][k];
+     A[i][i] = reduction_r;
+     A[i][i] = SQRT_FUN(A[i][i]);
+  }
+#pragma endscop
+
+}
+#else
 static
 void kernel_cholesky(int n,
 		     DATA_TYPE POLYBENCH_2D(A,N,N,n,n))
@@ -108,6 +139,7 @@ void kernel_cholesky(int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

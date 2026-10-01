@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -86,6 +89,41 @@ void print_array(int m, int n,
    including the call and return. */
 /* QR Decomposition with Modified Gram Schmidt:
  http://www.inf.ethz.ch/personal/gander/ */
+#ifdef USE_REDUCER
+static
+void kernel_gramschmidt(int m, int n,
+			DATA_TYPE POLYBENCH_2D(A,M,N,m,n),
+			DATA_TYPE POLYBENCH_2D(R,N,N,n,n),
+			DATA_TYPE POLYBENCH_2D(Q,M,N,m,n))
+{
+  int i, j, k;
+
+  DATA_TYPE nrm;
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> reduction_r = SCALAR_VAL(0.0);
+  for (int k = 0; k < _PB_N; k++)
+    {
+      reduction_r = SCALAR_VAL(0.0);
+      cilk_for (int i = 0; i < _PB_M; i++)
+        reduction_r += A[i][k] * A[i][k];
+      DATA_TYPE nrm = reduction_r;
+      R[k][k] = SQRT_FUN(nrm);
+      cilk_for (int i = 0; i < _PB_M; i++)
+        Q[i][k] = A[i][k] / R[k][k];
+      for (int j = k + 1; j < _PB_N; j++) {
+        reduction_r = SCALAR_VAL(0.0);
+        cilk_for (int i = 0; i < _PB_M; i++)
+          reduction_r += Q[i][k] * A[i][j];
+        R[k][j] = reduction_r;
+	      cilk_for (int i = 0; i < _PB_M; i++) {
+	        A[i][j] = A[i][j] - Q[i][k] * R[k][j];
+        }
+	    }
+    }
+#pragma endscop
+
+}
+#else
 static
 void kernel_gramschmidt(int m, int n,
 			DATA_TYPE POLYBENCH_2D(A,M,N,m,n),
@@ -117,6 +155,7 @@ void kernel_gramschmidt(int m, int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)

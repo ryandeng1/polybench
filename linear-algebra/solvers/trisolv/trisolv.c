@@ -14,6 +14,9 @@
 #include <string.h>
 #include <math.h>
 #include <cilk/cilk.h>
+#ifdef USE_REDUCER
+#include <cilk/opadd_reducer>
+#endif
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -68,6 +71,27 @@ void print_array(int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
+#ifdef USE_REDUCER
+static
+void kernel_trisolv(int n,
+		    DATA_TYPE POLYBENCH_2D(L,N,N,n,n),
+		    DATA_TYPE POLYBENCH_1D(x,N,n),
+		    DATA_TYPE POLYBENCH_1D(b,N,n))
+{
+  int i, j;
+#pragma scop
+  cilk::opadd_reducer<DATA_TYPE> x_r = SCALAR_VAL(0.0);
+  for (int i = 0; i < _PB_N; i++)
+    {
+      x_r = b[i];
+      cilk_for (int j = 0; j < i; j++)
+        x_r += -L[i][j] * x[j];
+      x[i] = x_r / L[i][i];
+    }
+#pragma endscop
+
+}
+#else
 static
 void kernel_trisolv(int n,
 		    DATA_TYPE POLYBENCH_2D(L,N,N,n,n),
@@ -86,6 +110,7 @@ void kernel_trisolv(int n,
 #pragma endscop
 
 }
+#endif
 
 
 int main(int argc, char** argv)
